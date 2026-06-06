@@ -20,6 +20,14 @@
 
   // Ko-fi tip link. ⚠️ Replace "zeroscript" with your real Ko-fi username.
   const KOFI_URL = "https://ko-fi.com/zeroscript";
+  // Roblox "tip" Game Passes — the native currency for the audience.
+  const ROBUX_PASSES = [
+    { robux: 30, id: 1865342947 },
+    { robux: 100, id: 1866782815 },
+    { robux: 300, id: 1869176990 },
+    { robux: 1000, id: 1865192973 },
+  ];
+  const passUrl = (id) => `https://www.roblox.com/game-pass/${id}`;
 
   const A = {
     running: false,
@@ -900,8 +908,9 @@
           <div class="zs-row">
             <span id="zs-dot" class="off"></span>
             <span id="zs-title">ZeroScript <span class="zs-free">Free</span></span>
-            <button id="zs-kofi" title="Support ZeroScript — buy me a coffee ☕">♥ Tip</button>
+            <button id="zs-kofi" title="Support ZeroScript ♥">♥ Tip</button>
           </div>
+          <div id="zs-tip-menu" hidden></div>
           <div class="zs-row zs-sub"><span id="zs-state">Bridge: …</span></div>
           <div id="zs-cta">
             <button id="zs-start">▶  Start session</button>
@@ -924,10 +933,33 @@
       stateEl = root.querySelector("#zs-state");
       startBtn.addEventListener("click", startSession);
       root.querySelector("#zs-new").addEventListener("click", newSessionClick);
-      root.querySelector("#zs-kofi").addEventListener("click", () => {
-        try { window.open(KOFI_URL, "_blank", "noopener"); } catch {}
-      });
+      buildTipMenu();
       stopBtn.addEventListener("click", stopLoop);
+    }
+
+    // Support menu: Ko-fi + Roblox Game Pass "tips" (native currency).
+    function buildTipMenu() {
+      const menu = root.querySelector("#zs-tip-menu");
+      const kofiBtn = root.querySelector("#zs-kofi");
+      const open = (url) => { try { window.open(url, "_blank", "noopener"); } catch {} menu.hidden = true; };
+      let html = `<div class="zs-tip-h">Support ZeroScript ♥</div>`;
+      html += `<button class="zs-tip-opt zs-tip-kofi" data-u="${KOFI_URL}">☕ Ko-fi — any amount</button>`;
+      html += `<div class="zs-tip-sep">or tip in Robux</div>`;
+      for (const p of ROBUX_PASSES) {
+        html += `<button class="zs-tip-opt zs-tip-rbx" data-u="${passUrl(p.id)}">⬡ ${p.robux} Robux</button>`;
+      }
+      menu.innerHTML = html;
+      menu.querySelectorAll(".zs-tip-opt").forEach((b) =>
+        b.addEventListener("click", () => open(b.dataset.u)));
+      kofiBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        menu.hidden = !menu.hidden;
+      });
+      // Close when clicking anywhere else.
+      document.addEventListener("click", (e) => {
+        if (menu.hidden) return;
+        if (!menu.contains(e.target) && e.target !== kofiBtn) menu.hidden = true;
+      }, true);
     }
 
     // Toggle the onboarding CTA vs. the "session active" state.
@@ -1112,16 +1144,20 @@
   bg({ type: "status" }).then((s) => s && ui.setStatus(s));
   setInterval(() => bg({ type: "status" }).then((s) => s && ui.setStatus(s)), 5000);
 
-  // Session restore: if the system-prompt turn is already in the conversation
-  // (e.g. after a page reload), the agent is still "ready" — don't re-inject.
-  function restoreSession() {
-    if (A.started) return;
+  // Session state is derived from the ACTUAL chat: a session is "active" only if
+  // the system-prompt turn is present in the current conversation. Kimi is a SPA,
+  // so switching to / opening a fresh chat must flip the panel back to "Start"
+  // (the old code only ever latched started=true → every new chat looked active).
+  // We never flip while busy, so an in-flight start/loop isn't disturbed.
+  function syncSessionState() {
+    if (A.starting || A.injecting || A.running) return;
+    let has = false;
     for (const it of document.querySelectorAll(S.chatItem)) {
-      if ((it.textContent || "").includes(ZS.SYS_MARKER)) {
-        A.started = true;
-        ui.setStarted(true);
-        break;
-      }
+      if ((it.textContent || "").includes(ZS.SYS_MARKER)) { has = true; break; }
+    }
+    if (has !== A.started) {
+      A.started = has;
+      ui.setStarted(has);
     }
   }
 
@@ -1129,11 +1165,11 @@
   const mo = new MutationObserver(() => {
     if (sweepScheduled) return;
     sweepScheduled = true;
-    requestAnimationFrame(() => { sweepScheduled = false; restoreSession(); decorate.sweep(); });
+    requestAnimationFrame(() => { sweepScheduled = false; syncSessionState(); decorate.sweep(); });
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
 
-  restoreSession();
+  syncSessionState();
   hookUserSend();
 
   // Auto-resume watchdog — the robust safety net that keeps the agentic loop

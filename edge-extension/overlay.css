@@ -45,6 +45,30 @@
 }
 #zs-kofi:hover { background: rgba(255, 105, 135, 0.28); filter: brightness(1.1); }
 
+/* tip menu (Ko-fi + Robux game passes) */
+#zs-tip-menu {
+  margin-top: 10px; padding: 10px;
+  background: rgba(12, 12, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;
+}
+.zs-tip-h { font-size: 11px; font-weight: 700; opacity: 0.85; margin-bottom: 8px; }
+.zs-tip-sep {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  opacity: 0.45; margin: 8px 0 6px; text-align: center;
+}
+.zs-tip-opt {
+  width: 100%; margin: 4px 0; padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+.zs-tip-opt:hover { filter: brightness(1.12); }
+.zs-tip-kofi { background: rgba(255, 105, 135, 0.16); color: #ff8fa3; }
+.zs-tip-rbx {
+  background: rgba(129, 140, 248, 0.14); color: #c7d2fe;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
 /* ── onboarding CTA ────────────────────────────────────────── */
 #zs-cta { margin-top: 12px; }
 #zs-start {
