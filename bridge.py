@@ -356,7 +356,7 @@ clients = set()
 
 
 def safe_call(name, arguments, timeout):
-    """Never raises. Always returns a dict the extension can feed back to Kimi."""
+    """Never raises. Always returns a dict the extension can feed back to DeepSeek."""
     try:
         result = mgr.call(name, arguments, timeout)
         return {"ok": True, "text": result["text"], "images": result["images"]}
@@ -448,10 +448,10 @@ async def main():
         log(f"server startup error: {e}", "rd")
         log("The bridge will keep running; it retries on the first tool call.", "yl")
     total = len(mgr.list_tools())
-    log(f"ready — {total} tools available ({len(mgr.clients)} MCP server(s))", "gr")
+    log(f"ready {total} tools available ({len(mgr.clients)} MCP server(s))", "gr")
 
     async with websockets.serve(handler, HOST, PORT, ping_interval=20, ping_timeout=20, max_size=16 * 1024 * 1024):
-        log(f"listening on ws://{HOST}:{PORT}  — load the extension and open kimi.com", "gr")
+        log(f"listening on ws://{HOST}:{PORT}  — load the extension and open chat.deepseek.com", "gr")
         await asyncio.Future()  # run forever
 
 

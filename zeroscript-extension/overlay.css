@@ -1,4 +1,4 @@
-/* overlay.css — ZeroScript Free in-page UI. Scoped under #zs-root / .zs-* */
+/* overlay.css - ZeroScript Free in-page UI. Scoped under #zs-root / .zs-* */
 
 #zs-root {
   position: fixed;
@@ -73,6 +73,7 @@
 #zs-cta { margin-top: 12px; }
 #zs-start {
   width: 100%; padding: 11px;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
   background: linear-gradient(135deg, #6366f1, #818cf8);
   color: #fff; border: 0; border-radius: 11px;
   font-size: 14px; font-weight: 700; cursor: pointer;
@@ -80,6 +81,8 @@
   animation: zs-pulse 2s ease-in-out infinite;
   transition: filter 0.15s ease;
 }
+/* While starting up the button is calm (no pulse) and shows a spinner. */
+#zs-start:disabled .zs-spin { border-top-color: #fff; border-color: rgba(255,255,255,0.45); }
 #zs-start:hover { filter: brightness(1.08); }
 #zs-start:disabled {
   background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.5);
@@ -94,6 +97,11 @@
   opacity: 0.8; text-align: center;
 }
 #zs-hint b { color: #c7d2fe; }
+/* Blocking warning (no bridge / not a blank chat): red so it can't be missed. */
+#zs-hint.zs-hint-warn {
+  opacity: 1; color: #fca5a5; font-weight: 600;
+}
+#zs-hint.zs-hint-warn b { color: #fecaca; }
 
 /* ── session-active state ──────────────────────────────────── */
 #zs-active { margin-top: 12px; }
@@ -110,6 +118,10 @@
   0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
   100% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
 }
+/* Idle dot: shown when the panel offers "New session" on an existing chat that
+   has no live agent (no misleading green pulse). */
+.zs-live-dot.idle { background: #9ca3af; animation: none; box-shadow: none; }
+.zs-active-txt:has(.zs-live-dot.idle) { color: #cbd0e0; font-weight: 500; }
 #zs-new {
   width: 100%; margin-top: 9px;
   background: rgba(255, 255, 255, 0.08); color: #cbd0e0;
@@ -125,8 +137,47 @@
 }
 #zs-stop:hover { background: #dc2626; }
 
-/* ── hide Kimi's native stop button (we provide our own ■ Stop) ── */
-.send-button-container.stop { display: none !important; }
+/* On DeepSeek the primary footer button is the user's own send/stop control,
+   so we do NOT hide it - our panel's ■ Stop is an additional control. */
+
+/* ── composer mode enforcement ──────────────────────────────────
+   Force Expert, force "Pensée profonde / Réflexion" DeepThink ON, and
+   disable Search if DeepSeek exposes it. DeepThink is hidden by content.js
+   each sweep after enforcement,
+   so it survives DeepSeek's React re-renders. */
+.zs-hide-el { display: none !important; }
+
+/* ── Start-session input gate ───────────────────────────────────
+   On a blank, not-yet-started conversation we hide the ENTIRE composer
+   box and bring the control panel up over it (enlarged), so a
+   non-technical user can't miss the mandatory "Start session" step.
+   visibility:hidden keeps the layout stable (no page jump) while making
+   the input + send + mode selector unclickable. */
+.zs-frame-hidden { visibility: hidden !important; }
+
+/* Gate mode: the control panel leaves its corner and sits over the
+   composer (left/top/width/min-height set inline at runtime). */
+#zs-root.zs-gate-on #zs-panel {
+  right: auto; bottom: auto;
+  display: flex; flex-direction: column; justify-content: center;
+  border-color: rgba(129, 140, 248, 0.6);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(129, 140, 248, 0.45);
+  animation: zs-gate-in 0.18s ease-out;
+}
+@keyframes zs-gate-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* In gate mode the Start button + hint are the focus. */
+#zs-root.zs-gate-on #zs-cta { margin-top: 14px; }
+#zs-root.zs-gate-on #zs-hint { font-size: 12px; opacity: 0.9; }
+
+/* Start button attention flash (triggered when the user tries to send early) */
+#zs-start.zs-flash { animation: zs-flash 0.4s ease-in-out 3; }
+@keyframes zs-flash {
+  0%, 100% { transform: scale(1); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.6), 0 4px 22px rgba(129, 140, 248, 0.9); }
+}
 
 /* ── input cover: fully hides the text the extension types + sends ──
    background colour is set inline at runtime to match the input box,
@@ -142,9 +193,12 @@
   pointer-events: none;
 }
 
-/* belt-and-suspenders: the typed text itself is rendered invisible */
+/* belt-and-suspenders: the typed text itself is rendered invisible
+   (DeepSeek's composer is a <textarea>; the Kimi build used a contenteditable) */
+textarea.zs-typing,
 div[contenteditable='true'].zs-typing,
 div[contenteditable='true'].zs-typing * { color: transparent !important; }
+textarea.zs-typing,
 div[contenteditable='true'].zs-typing { caret-color: transparent !important; }
 
 /* ── spinner element ───────────────────────────────────────── */
@@ -274,6 +328,62 @@ div[contenteditable='true'].zs-typing { caret-color: transparent !important; }
 .zs-banner-new:hover { background: #4f46e5; }
 .zs-banner-x { background: rgba(255, 255, 255, 0.1); color: #e8e8ec; }
 .zs-banner-x:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* ── first-time onboarding card (bridge missing) ─────────────────── */
+#zs-setup {
+  position: fixed;
+  right: 18px;
+  width: 282px;
+  padding: 14px 15px;
+  background: linear-gradient(160deg, rgba(28, 28, 38, 0.97), rgba(18, 18, 24, 0.97));
+  color: #e8e8ec;
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  border-radius: 14px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  z-index: 2147483600;
+  animation: zs-gate-in 0.2s ease-out;
+}
+#zs-setup-title { font-weight: 700; font-size: 13px; margin-bottom: 5px; }
+#zs-setup-sub { opacity: 0.78; font-size: 11px; line-height: 1.45; margin-bottom: 10px; }
+#zs-setup-video {
+  display: block; width: 100%; padding: 8px;
+  background: rgba(129, 140, 248, 0.15); color: #c7d2fe;
+  border: 1px solid rgba(129, 140, 248, 0.4); border-radius: 8px;
+  font-size: 12px; font-weight: 700; text-align: center; text-decoration: none;
+  margin-bottom: 10px; box-sizing: border-box;
+  transition: background 0.15s ease;
+}
+#zs-setup-video:hover { background: rgba(129, 140, 248, 0.28); }
+.zs-setup-copy-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.zs-setup-copy-row input {
+  flex: 1; min-width: 0;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px; color: #c7d2fe; font-size: 10px;
+  padding: 5px 8px; font-family: ui-monospace, "Cascadia Mono", monospace;
+  outline: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#zs-setup-copy {
+  background: rgba(129, 140, 248, 0.18); color: #c7d2fe;
+  border: 1px solid rgba(129, 140, 248, 0.4); border-radius: 7px;
+  padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s ease;
+}
+#zs-setup-copy:hover { background: rgba(129, 140, 248, 0.34); }
+#zs-setup-steps {
+  font-size: 11px; line-height: 1.7; opacity: 0.75;
+  margin-bottom: 11px; padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04); border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+#zs-setup-dismiss {
+  width: 100%; padding: 7px; border-radius: 8px; border: 0;
+  background: rgba(255, 255, 255, 0.09); color: #cbd0e0;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s ease;
+}
+#zs-setup-dismiss:hover { background: rgba(255, 255, 255, 0.18); }
 
 /* ── capture preview panel ─────────────────────────────────── */
 .zs-img-wrap {

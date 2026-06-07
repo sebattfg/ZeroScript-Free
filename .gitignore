@@ -1,12 +1,12 @@
-# Python
-__pycache__/
-*.pyc
+﻿# Local-only folders
+Compressed/
+Deprecated/
+ExtensionPresentation/
 
-# Old Playwright MCP profile (no longer used)
-edge_mcp_profile/
+# Zip files
+*.zip
 
-# OS / editor
+# System files
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
+desktop.ini

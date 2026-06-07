@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ZeroScript Free — DeepSeek × Roblox Studio Agent",
-  "version": "1.0.0",
-  "description": "Turn DeepSeek into a Roblox Studio agent. A clean, robust agentic loop runs right inside the page and drives Roblox Studio through the MCP. No terminal needed.",
+  "name": "ZeroScript Free DeepSeek × Roblox Studio Agent",
+  "version": "1.1.0",
+  "description": "Turn DeepSeek into a Roblox Studio agent that drives Studio through a local bridge from chat.deepseek.com.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://chat.deepseek.com/*",

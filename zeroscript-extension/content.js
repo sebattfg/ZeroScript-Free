@@ -62,6 +62,10 @@
 
   // Ko-fi tip link.
   const KOFI_URL = "https://ko-fi.com/sebattfg";
+  // GitHub releases page - where users download the Bridge + start.bat.
+  const GITHUB_URL = "https://github.com/sebattfg/ZeroScript-Free";
+  // YouTube tutorial — how to set up the Bridge.
+  const VIDEO_URL = "https://youtu.be/nh0iVPi2BC8";
   // Roblox "tip" Game Passes - the native currency for the audience.
   const ROBUX_PASSES = [
     { robux: 30, id: 1865342947 },
@@ -1390,6 +1394,8 @@
     document.addEventListener(
       "click",
       (e) => {
+        // Not on a chat page (e.g. login / OAuth page) - never intercept anything.
+        if (!getEditor()) return;
         const t = e.target;
         // DeepSeek's native "Continue" button = a clear intent to RESUME after a
         // stop/truncation. Clear the manual-stop latch so the loop's auto-resume
@@ -1741,6 +1747,79 @@
       }, true);
     }
 
+    // ── First-time onboarding card (bridge missing) ─────────────────────────
+    // Shown once, above the panel, when the bridge has never been connected.
+    // Dismissed via "Got it" → stored in chrome.storage.local → never shown again.
+    let setupCard = null, setupSeen = false, setupRaf = null;
+    try {
+      chrome.storage.local.get("zsSetupSeen", (r) => {
+        if (r && r.zsSetupSeen) setupSeen = true;
+      });
+    } catch {}
+
+    function buildSetup() {
+      setupCard = document.createElement("div");
+      setupCard.id = "zs-setup";
+      setupCard.hidden = true;
+      const videoBtn = VIDEO_URL
+        ? `<a id="zs-setup-video" href="${VIDEO_URL}" target="_blank" rel="noopener">▶ Watch tutorial</a>`
+        : "";
+      setupCard.innerHTML =
+        `<div id="zs-setup-title">👋 Welcome to ZeroScript!</div>` +
+        `<div id="zs-setup-sub">You need the <b>Bridge</b> to connect to Roblox Studio. Download it from GitHub:</div>` +
+        videoBtn +
+        `<div class="zs-setup-copy-row">` +
+          `<input type="text" id="zs-setup-link" readonly value="${GITHUB_URL}">` +
+          `<button id="zs-setup-copy">Copy</button>` +
+        `</div>` +
+        `<div id="zs-setup-steps">1. Download the Bridge &amp; start.bat<br>2. Run start.bat<br>3. Come back here and click <b>Start session</b></div>` +
+        `<button id="zs-setup-dismiss">Got it ✓</button>`;
+      document.documentElement.appendChild(setupCard);
+
+      setupCard.querySelector("#zs-setup-copy").addEventListener("click", () => {
+        try { navigator.clipboard.writeText(GITHUB_URL); } catch {
+          const inp = setupCard.querySelector("#zs-setup-link");
+          inp.select(); try { document.execCommand("copy"); } catch {}
+        }
+        const btn = setupCard.querySelector("#zs-setup-copy");
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1600);
+      });
+
+      setupCard.querySelector("#zs-setup-dismiss").addEventListener("click", () => {
+        setupSeen = true;
+        try { chrome.storage.local.set({ zsSetupSeen: true }); } catch {}
+        hideSetup();
+      });
+    }
+
+    function placeSetup() {
+      if (!setupCard || setupCard.hidden || !panel) return;
+      const r = panel.getBoundingClientRect();
+      setupCard.style.bottom = (window.innerHeight - r.top + 10) + "px";
+      setupCard.style.right = "18px";
+      setupRaf = requestAnimationFrame(placeSetup);
+    }
+
+    function showSetup() {
+      if (!setupCard) buildSetup();
+      if (setupCard.hidden) {
+        setupCard.hidden = false;
+        cancelAnimationFrame(setupRaf);
+        placeSetup();
+      }
+    }
+
+    function hideSetup() {
+      if (setupCard) setupCard.hidden = true;
+      cancelAnimationFrame(setupRaf);
+    }
+
+    function refreshSetup(bridgeConnected) {
+      if (setupSeen || bridgeConnected) { hideSetup(); return; }
+      showSetup();
+    }
+
     // Decide what the corner panel shows:
     //  • a FRESH blank chat, not started → onboarding CTA (big "Start session").
     //  • anything else (a started session OR an existing conversation the user
@@ -1796,6 +1875,7 @@
       if (s.connected) bridgeAlert(false);
       wasConnected = s.connected;
       refreshStart();
+      refreshSetup(s.connected);
     }
 
     // Show (on=true) / clear (on=false) the bridge-disconnected red banner.
@@ -1981,7 +2061,7 @@
     }
 
     build();
-    return { setStatus, setStarted, setStarting, showStop, inputCover, toast, banner, showImages, nudgeStart, updateStartGate };
+    return { setStatus, setStarted, setStarting, showStop, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup };
   })();
 
   // ── Live token + timer, shown ONLY on a tool call's chip detail (never on
