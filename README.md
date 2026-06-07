@@ -23,14 +23,18 @@ To load the extension:
 3. Click **Load unpacked**
 4. Select the `zeroscript-extension` folder from the extracted zip
 
-### 2. Start Roblox Studio
-Open Studio and load a Place before starting the Bridge.
+### 2. Start Roblox Studio and enable MCP
+Open Studio and load a Place, then enable MCP (first time only):
+1. Click **Assistant AI** in the top bar
+2. Click **...** (top right of the Assistant panel)
+3. Click **Manage MCP Servers**
+4. Click **Enable Studio as MCP Server**
 
-### 3. Run the Bridge
+### 4. Run the Bridge
 Double-click **start.bat** inside the extracted folder.
 A small window opens, that means the Bridge is running.
 
-### 4. Start a session
+### 5. Start a session
 Go to **https://chat.deepseek.com** and open a new chat.
 The ZeroScript panel appears at the bottom right. Click **Start session**.
 Type what you want to build.
@@ -59,7 +63,7 @@ Type what you want to build.
 ## Requirements
 
 - Windows PC
-- Roblox Studio with the MCP plugin installed
+- Roblox Studio (MCP support built-in)
 - Microsoft Edge or Chrome
 - Python 3.8+ (included in start.bat setup)
 
