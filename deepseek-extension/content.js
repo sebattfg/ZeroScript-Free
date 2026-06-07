@@ -199,31 +199,96 @@
   // default) and "Expert" (better results). We force Expert (the radio stays
   // hidden inside the gated composer, so we no longer hide the "Rapide" option
   // individually - that broke the sliding selection highlight). The "Pensée
-  // profonde / Réflexion" DeepThink toggle (a single .ds-toggle-button, ON by
-  // default) is hidden so the user can't turn it off. Re-run every sweep so it
+  // profonde / Réflexion" DeepThink toggle (a single .ds-toggle-button) is
+  // forced ON, then hidden so the user can't turn it off. Re-run every sweep so it
   // survives React re-renders and applies the instant a new chat appears.
-  function enforceComposer() {
+  const nodeText = (n) => (n && (n.innerText || n.textContent || "").trim()) || "";
+  const isPressedOn = (n) =>
+    n && (n.getAttribute("aria-pressed") === "true" ||
+          n.getAttribute("aria-checked") === "true" ||
+          n.classList.contains("ds-toggle-button--selected"));
+  const isPressedOff = (n) =>
+    n && (n.getAttribute("aria-pressed") === "false" ||
+          n.getAttribute("aria-checked") === "false");
+
+  function findExpertRadio() {
+    const group = document.querySelector(S.modeRadioGroup);
+    const radios = group ? [...group.querySelectorAll(S.modeRadio)] : [...document.querySelectorAll(S.modeRadio)];
+    return radios.find((r) => r.getAttribute("data-model-type") === "expert") ||
+           radios.find((r) => ZS.RE.expertMode.test(nodeText(r))) ||
+           null;
+  }
+
+  function findToggleBy(re) {
+    return [...document.querySelectorAll(S.deepThinkToggle)].find((t) => re.test(nodeText(t))) || null;
+  }
+
+  function composerModeState() {
+    const expert = findExpertRadio();
+    const deepThink = findToggleBy(ZS.RE.deepThink);
+    const search = findToggleBy(ZS.RE.searchMode);
+    return {
+      expertFound: !!expert,
+      expertOn: !!expert && expert.getAttribute("aria-checked") === "true",
+      deepThinkFound: !!deepThink,
+      deepThinkOn: !!deepThink && isPressedOn(deepThink),
+      searchFound: !!search,
+      searchOff: !search || !isPressedOn(search),
+      searchHiddenInExpert: !search && !!expert && expert.getAttribute("aria-checked") === "true",
+    };
+  }
+
+  function enforceComposer(reason) {
     try {
-      const group = document.querySelector(S.modeRadioGroup);
-      if (group) {
-        const radios = [...group.querySelectorAll(S.modeRadio)];
-        const expert = radios.find((r) => ZS.RE.expertMode.test((r.innerText || r.textContent || "").trim()));
-        if (expert && expert.getAttribute("aria-checked") !== "true") {
-          try { expert.click(); } catch {}
-        }
+      const expert = findExpertRadio();
+      if (expert && expert.getAttribute("aria-checked") !== "true") {
+        try { expert.click(); } catch (e) { if (reason) diag("mode_fallback", { reason, target: "expert", error: String(e && e.message || e) }); }
       }
+
       // DeepThink ("Pensée profonde / Réflexion"): make sure it is ON, then hide
-      // it so the user can't turn it off. We only click when it is EXPLICITLY off
-      // (aria-checked="false"), never on an ambiguous state, so we can't
-      // accidentally disable an already-on toggle.
-      for (const t of document.querySelectorAll(S.deepThinkToggle)) {
-        if (!ZS.RE.deepThink.test((t.innerText || t.textContent || "").trim())) continue;
-        if (t.getAttribute("aria-checked") === "false") {
-          try { t.click(); } catch {}
+      // it so the user can't turn it off. DeepSeek currently uses aria-pressed,
+      // while older notes expected aria-checked; handle both so locale/site
+      // changes leave a breadcrumb instead of silently starting in fast mode.
+      const deepThink = findToggleBy(ZS.RE.deepThink);
+      if (deepThink) {
+        if (isPressedOff(deepThink)) {
+          try { deepThink.click(); } catch (e) { if (reason) diag("mode_fallback", { reason, target: "deepThink", error: String(e && e.message || e) }); }
         }
-        t.classList.add("zs-hide-el");
+        deepThink.classList.add("zs-hide-el");
+      } else if (reason) {
+        diag("mode_fallback", { reason, target: "deepThink", error: "toggle not found" });
       }
-    } catch {}
+
+      // Search is visible in Rapide and disappears after Expert is selected
+      // (validated live). If present, force it off; if absent in Expert, OK.
+      const search = findToggleBy(ZS.RE.searchMode);
+      if (search) {
+        if (isPressedOn(search)) {
+          try { search.click(); } catch (e) { if (reason) diag("mode_fallback", { reason, target: "search", error: String(e && e.message || e) }); }
+        }
+      } else if (reason && (!expert || expert.getAttribute("aria-checked") !== "true")) {
+        diag("mode_fallback", { reason, target: "search", error: "toggle not found before Expert was confirmed" });
+      }
+
+      const state = composerModeState();
+      if (reason) diag("mode_enforce", { reason, ...state });
+      return state;
+    } catch (e) {
+      if (reason) diag("mode_fallback", { reason, target: "composer", error: String(e && e.message || e) });
+      return composerModeState();
+    }
+  }
+
+  async function ensureComposerModesReady(reason) {
+    let state = composerModeState();
+    for (let i = 0; i < 12; i++) {
+      state = enforceComposer(reason);
+      if (state.expertOn && state.deepThinkOn && state.searchOff) break;
+      await sleep(120);
+    }
+    state = composerModeState();
+    diag("mode_ready", { reason, ...state });
+    return state;
   }
 
   // Everything DeepSeek is streaming for a turn: its reasoning (.ds-think-content)
@@ -248,7 +313,7 @@
   // yet" (reasoning phase, ended only by an answer token or a native Continue
   // button), and text-growth windows. Getting this wrong makes the loop finalize
   // mid-reasoning, send a follow-up, and - since send IS stop - abort the turn.
-  const GEN_IDLE_MS = 2000;      // answer phase: text unchanged this long ⇒ idle
+  const GEN_IDLE_MS = 800;       // answer phase: text unchanged this long ⇒ idle (rect is the primary signal; 800ms is a safe fallback)
   // Reasoning phase tolerates MUCH longer pauses. DeepThink/R1 routinely stalls
   // for several seconds between thoughts (and longer when DeepSeek's servers are
   // busy). The old 2s window mistook such a pause for "done", so the loop sent a
@@ -805,7 +870,7 @@
       }
 
       if (!doneSince) doneSince = Date.now();
-      if (Date.now() - doneSince < 1100) {
+      if (Date.now() - doneSince < 500) {  // 500ms settle (was 1100) – rect gone means DOM is stable
         await sleep(120);
         continue;
       }
@@ -1206,6 +1271,12 @@
       if (!A.toolList.length) {
         ui.banner("warn", "Bridge or Studio offline",
           "Could not fetch Roblox tools. Start the ZeroScript bridge and make sure Roblox Studio is open, then try again.");
+        return;
+      }
+      const modeState = await ensureComposerModesReady("startup");
+      if (!modeState.expertOn) {
+        ui.banner("warn", "DeepSeek mode not ready",
+          "Could not switch DeepSeek to Expert mode. Start a new chat or reload DeepSeek, then try again.");
         return;
       }
       const prompt = ZS.buildSystemPrompt(A.toolList);

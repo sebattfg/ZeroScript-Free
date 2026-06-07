@@ -48,9 +48,9 @@ const ZS = (() => {
     // ── Composer mode controls (empty chat only) ──────────────────────────
     // A blank conversation shows a [role=radiogroup] with two [role=radio]
     // options: "Rapide" (fast, default) and "Expert" (better results). We force
-    // Expert and hide the other(s). The "Pensée profonde / Réflexion" DeepThink
-    // toggle is a single .ds-toggle-button below the textarea, selected by
-    // default; we hide it so it can never be turned off. (Validated live.)
+    // Expert. The "Pensée profonde / Réflexion" DeepThink toggle is a single
+    // .ds-toggle-button below the textarea; we force it on and hide it so it can
+    // never be turned off. (Validated live.)
     modeRadioGroup: '[role="radiogroup"]',
     modeRadio: '[role="radio"]',
     deepThinkToggle: ".ds-toggle-button",
@@ -88,6 +88,9 @@ const ZS = (() => {
     // The DeepThink toggle's label across locales ("Pensée profonde" FR,
     // "DeepThink"/"Deep Thinking" EN, "Réflexion (approfondie)", 深度思考).
     deepThink: /pensée profonde|pensee profonde|profonde|réflexion|reflexion|deep ?think|深度思考|r1/i,
+    // Search/browsing toggle. It is visible in "Rapide" and disappears in
+    // "Expert" (validated live), so absence is OK after Expert is selected.
+    searchMode: /recherche intelligente|smart search|search|web|搜索/i,
     // DeepSeek's "New chat" button label (top of the sidebar). Used by the panel's
     // "New session" action to open a FRESH conversation before injecting the
     // system prompt - matched as the WHOLE trimmed text so a history item titled

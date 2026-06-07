@@ -75,9 +75,9 @@ each only runs on its own site.
   context limit, so you never start two sessions in the same chat by accident.
 - **■ Stop** interrupts the loop at any time.
 
-> **Tip:** keep the **DeepThink (R1)** toggle however you like (its reasoning is ignored by the
-> loop), but leave the **Search** (web) toggle **off** unless you explicitly want DeepSeek to
-> browse — the system prompt tells it not to use built-in features.
+> **Tip:** ZeroScript forces **Expert** + **DeepThink (R1)** before startup, and disables
+> **Search** if DeepSeek exposes it. In Expert mode the Search toggle currently disappears,
+> which is expected.
 
 ## Robustness — what's covered
 DeepSeek always receives a usable response:

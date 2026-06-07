@@ -141,8 +141,9 @@
    so we do NOT hide it - our panel's ■ Stop is an additional control. */
 
 /* ── composer mode enforcement ──────────────────────────────────
-   Hide the "Rapide" mode radio + the "Pensée profonde / Réflexion"
-   DeepThink toggle. Forced via a class added by content.js each sweep,
+   Force Expert, force "Pensée profonde / Réflexion" DeepThink ON, and
+   disable Search if DeepSeek exposes it. DeepThink is hidden by content.js
+   each sweep after enforcement,
    so it survives DeepSeek's React re-renders. */
 .zs-hide-el { display: none !important; }
 
