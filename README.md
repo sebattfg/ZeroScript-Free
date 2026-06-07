@@ -26,7 +26,11 @@ To load the extension:
 ### 2. Start Roblox Studio and enable MCP
 Open Studio and load a Place, then enable MCP (first time only):
 1. Click **Assistant AI** in the top bar
+<img width="953" height="117" alt="image" src="https://github.com/user-attachments/assets/088c7880-4b6c-417b-bf11-87ae18868b75" />
+
 2. Click **...** (top right of the Assistant panel)
+<img width="957" height="123" alt="image" src="https://github.com/user-attachments/assets/57948453-9fbd-4853-937c-d1ab98144130" />
+
 3. Click **Manage MCP Servers**
 4. Click **Enable Studio as MCP Server**
 
