@@ -65,7 +65,7 @@
   // GitHub releases page - where users download the Bridge + start.bat.
   const GITHUB_URL = "https://github.com/sebattfg/ZeroScript-Free";
   // YouTube tutorial — how to set up the Bridge.
-  const VIDEO_URL = "https://youtu.be/nh0iVPi2BC8";
+  const VIDEO_URL = "https://youtu.be/QaViHSqzy5Q";
   // Roblox "tip" Game Passes - the native currency for the audience.
   const ROBUX_PASSES = [
     { robux: 30, id: 1865342947 },

@@ -19,7 +19,7 @@ Control Roblox Studio with AI directly from DeepSeek. Just describe what you wan
 5. Click **Start session** in the ZeroScript panel
 6. Type what you want to build
 
-📺 [Watch the setup tutorial](https://youtu.be/nh0iVPi2BC8)
+📺 [Watch the setup tutorial](https://youtu.be/QaViHSqzy5Q)
 
 ## Support
 

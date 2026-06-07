@@ -45,7 +45,7 @@ Type what you want to build.
 
 > Only works on **chat.deepseek.com** - it will not work on any other site.
 
-📺 [Watch the setup tutorial](https://youtu.be/nh0iVPi2BC8)
+📺 [Watch the setup tutorial](https://youtu.be/QaViHSqzy5Q)
 
 ## What the AI can do
 

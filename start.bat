@@ -64,6 +64,10 @@ echo         OK
 REM --- 3. Run the bridge ------------------------------------------------------
 echo.
 echo   [3/3] Starting bridge...
+REM Kill any previous instance using port 17613 so we can bind cleanly.
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :17613 ^| findstr LISTENING 2^>nul') do (
+    taskkill /F /PID %%a >nul 2>nul
+)
 echo.
 %PY% "%~dp0bridge.py"
 
