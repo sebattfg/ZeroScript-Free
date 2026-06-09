@@ -1,7 +1,13 @@
-# ZeroScript Free - Roblox Studio AI Agent
+# ZeroScript - Free AI Agent for Roblox Studio
 
-Control **Roblox Studio** with AI directly from your browser.
-ZeroScript connects **DeepSeek** to your Studio through a small local Bridge. Just describe what you want to build and the agent does the rest.
+![GitHub stars](https://img.shields.io/github/stars/sebattfg/ZeroScript-Free?style=social)
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
+**ZeroScript** is a free browser extension that turns DeepSeek into a Roblox Studio AI agent.
+Control Roblox Studio with AI directly from your browser - read/edit scripts, run Luau, generate assets, all from chat.deepseek.com. No terminal needed.
+
+> *Also known as: ZeroScript Roblox, ZeroScript free download, Roblox DeepSeek agent, Roblox Studio AI automation, Luau AI, MCP Roblox*
 
 ## How it works
 
@@ -14,38 +20,38 @@ The extension runs inside DeepSeek's chat page. When you type a request, it send
 ## Setup
 
 ### 1. Download the zip and install the extension
-Download the latest zip from the **Releases** page and extract it.
-The zip contains both the **Bridge** and the **extension folder**.
+
+Download the latest zip from the **Releases** page and extract it. The zip contains both the **Bridge** and the **extension folder**.
 
 To load the extension:
-1. Go to `edge://extensions` (Edge) or `chrome://extensions` (Chrome)
-2. Enable **Developer mode** (top right toggle)
-3. Click **Load unpacked**
-4. Select the `zeroscript-extension` folder from the extracted zip
+
+- Go to `edge://extensions` (Edge) or `chrome://extensions` (Chrome)
+- Enable **Developer mode** (top right toggle)
+- Click **Load unpacked**
+- Select the `zeroscript-extension` folder from the extracted zip
 
 ### 2. Start Roblox Studio and enable MCP
+
 Open Studio and load a Place, then enable MCP (first time only):
-1. Click **Assistant AI** in the top bar
-<img width="953" height="117" alt="image" src="https://github.com/user-attachments/assets/088c7880-4b6c-417b-bf11-87ae18868b75" />
 
-2. Click **...** (top right of the Assistant panel)
-<img width="957" height="123" alt="image" src="https://github.com/user-attachments/assets/57948453-9fbd-4853-937c-d1ab98144130" />
+- Click **Assistant AI** in the top bar
+- Click **...** (top right of the Assistant panel)
+- Click **Manage MCP Servers**
+- Click **Enable Studio as MCP Server**
 
-3. Click **Manage MCP Servers**
-4. Click **Enable Studio as MCP Server**
+### 3. Run the Bridge
 
-### 4. Run the Bridge
-Double-click **start.bat** inside the extracted folder.
-A small window opens, that means the Bridge is running.
+Double-click `start.bat` inside the extracted folder. A small window opens, that means the Bridge is running.
 
-### 5. Start a session
-Go to **https://chat.deepseek.com** and open a new chat.
-The ZeroScript panel appears at the bottom right. Click **Start session**.
-Type what you want to build.
+### 4. Start a session
 
-> Only works on **chat.deepseek.com** - it will not work on any other site.
+Go to https://chat.deepseek.com and open a new chat. The ZeroScript panel appears at the bottom right. Click **Start session**. Type what you want to build.
 
-📺 [Watch the setup tutorial](https://youtu.be/QaViHSqzy5Q)
+> Only works on chat.deepseek.com - it will not work on any other site.
+
+### 5. Watch the setup tutorial
+
+[Watch the setup tutorial on YouTube](https://youtu.be/QaViHSqzy5Q)
 
 ## What the AI can do
 
@@ -73,5 +79,4 @@ Type what you want to build.
 
 ## Support
 
-ZeroScript is free. If it saves you time:
-☕ [Ko-fi](https://ko-fi.com/sebattfg) - Robux tip passes available in the extension panel
+ZeroScript is free. If it saves you time: [Ko-fi](https://ko-fi.com/sebattfg) - Robux tip passes available in the extension panel
