@@ -14,7 +14,7 @@ Control Roblox Studio with AI directly from your browser - read/edit scripts, ru
 DeepSeek (browser) -> ZeroScript Extension -> Bridge (your PC) -> Roblox Studio
 ```
 
-The extension runs inside DeepSeek's chat page. When you type a request, it sends commands to the Bridge running on your PC, which drives Roblox Studio through the MCP plugin.
+The extension runs inside DeepSeek's chat page. When you type a request, it sends commands to the Bridge running on your PC, which drives Roblox Shtudio through thebuilt-in MCP server.
 
 ## Setup
 
