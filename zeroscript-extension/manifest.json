@@ -33,12 +33,6 @@
       "js": ["core/config.js", "core/parser.js", "providers/deepseek.js", "core/main.js"],
       "css": ["overlay.css"],
       "run_at": "document_idle"
-    },
-    {
-      "_disabled_matches": ["https://gemini.google.com/*"],
-      "_disabled_js": ["core/config.js", "core/parser.js", "providers/gemini.js", "core/main.js"],
-      "_disabled_css": ["overlay.css"],
-      "_disabled_run_at": "document_idle"
     }
   ]
 }
