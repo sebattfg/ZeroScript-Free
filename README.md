@@ -7,16 +7,18 @@
 **ZeroScript** is a free browser extension that turns DeepSeek into a Roblox Studio AI agent.
 Control Roblox Studio with AI directly from your browser - read/edit scripts, run Luau, generate assets, all from chat.deepseek.com. No terminal needed.
 
+Google Gemini (gemini.google.com) is also supported, but it is **unstable**: Gemini tends to stop using the Roblox tools after a while in long sessions. DeepSeek is the recommended provider.
+
 > 💬 **Stuck? Join the [Discord community](https://discord.gg/9aNyZsMWcb)** get help, share feedback, and follow updates.
 
 > *Also known as: ZeroScript Roblox, ZeroScript free download, Roblox DeepSeek agent, Roblox Studio AI automation, Luau AI, MCP Roblox, lemonade alternative free, lemonade.gg alternative, free Roblox AI agent, free lemonade roblox alternative*
 ## How it works
 
 ```
-DeepSeek (browser) -> ZeroScript Extension -> Bridge (your PC) -> Roblox Studio
+DeepSeek or Gemini (browser) -> ZeroScript Extension -> Bridge (your PC) -> Roblox Studio
 ```
 
-The extension runs inside DeepSeek's chat page. When you type a request, it sends commands to the Bridge running on your PC, which drives Roblox Studio through the built-in MCP server.
+The extension runs inside the chat page (DeepSeek or Gemini). When you type a request, it sends commands to the Bridge running on your PC, which drives Roblox Studio through the built-in MCP server.
 
 ## Setup
 
@@ -50,9 +52,10 @@ Double-click `start.bat` inside the extracted folder. A small window opens, that
 
 ### 4. Start a session
 
-Go to https://chat.deepseek.com and open a new chat. The ZeroScript panel appears at the bottom right. Click **Start session**. Type what you want to build.
+Go to https://chat.deepseek.com (recommended) or https://gemini.google.com and open a new chat. The ZeroScript panel appears at the bottom right. Click **Start session**. Type what you want to build.
 
-> Only works on chat.deepseek.com - it will not work on any other site.
+> Only works on chat.deepseek.com and gemini.google.com - it will not work on any other site.
+> Gemini support is unstable: it can stop using the Roblox tools after a while (model behavior, not the extension). If it starts answering in plain text instead of acting, remind it to use the commands or start a new session.
 ### 5. Watch the setup tutorial
 
 [Watch the setup tutorial on YouTube](https://youtu.be/QaViHSqzy5Q)
