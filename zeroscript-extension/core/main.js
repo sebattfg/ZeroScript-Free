@@ -91,7 +91,18 @@
 
   // Submit `text` as a new turn, masking the input while we type. Returns the
   // assistant-item count BEFORE the reply (waitForResponse waits beyond it).
+  // Snapshot the identity of the assistant turn present BEFORE we send. Paired
+  // with waitForResponse, this lets "a new reply turn exists" be tested by node
+  // identity rather than a raw count - the latter is unreliable on providers that
+  // virtualize the message list (ChatGPT), where the count stays flat as a new
+  // turn appears and old ones detach. Captured at every send site (tool feedback,
+  // user message, bootstrap). Providers without lastAssistantId fall back to count.
+  function captureSendToken() {
+    A.sendToken = P.lastAssistantId ? P.lastAssistantId() : undefined;
+  }
+
   async function submitAndGetBase(text) {
+    captureSendToken();
     diag("send", { text: String(text).slice(0, 60), busy: P.isBusyNow() });
     A.injecting = true;
     ui.inputCover(true);
@@ -152,7 +163,27 @@
     const TIMEOUT = T.RESPONSE_TIMEOUT_MS;
     const STABLE_MS = T.STABLE_MS; // generating-flag stuck ON but text frozen → done
     let started = false, doneSince = 0, lastLimitScan = 0;
-    let lastText = null, lastChangeAt = Date.now();
+    let lastText = null, lastChangeAt = Date.now(), genFalseSince = 0;
+    // ── DIAG: finalisation-latency instrumentation (multi_edit "slow" probe) ──
+    // genOffFirstAt: the FIRST moment gen went false after streaming began (does
+    // NOT reset on flicker, unlike genFalseSince). genFlickers: how many times gen
+    // flipped back true after having been false - a high count means post-stop DOM
+    // churn (or a wedged stop button) is what keeps the watcher alive. waitedBlock/
+    // waitedFlicker: iterations spent waiting because effectiveBlock held vs because
+    // gen was (re)true. These pinpoint which gate causes any tail latency.
+    let genOffFirstAt = 0, genFlickers = 0, prevGen = null;
+    let waitedBlock = 0, waitedFlicker = 0;
+    const finalizeDiag = (kind) => {
+      const now = Date.now();
+      diag("stopGoneToResp", {
+        kind,
+        stopGoneToRespMs: genOffFirstAt ? now - genOffFirstAt : null,
+        genStableForMs: genFalseSince ? now - genFalseSince : null,
+        lastChangeAgoMs: now - lastChangeAt,
+        genFlickers, waitedBlock, waitedFlicker,
+        totalMs: now - t0,
+      });
+    };
     let preStartSilent = 0; // nothing produced AND not generating
     let curItem = null, sawContent = false, warmSince = 0; // per-turn "warming up"
     let reasonSince = 0; // reasoning written but no answer yet (loading phase)
@@ -160,6 +191,12 @@
     const WARMUP_MS = T.WARMUP_MS;
     const REASON_NOREPLY_MS = T.REASON_NOREPLY_MS;
     const NO_TURN_GRACE_MS = 30000;
+    // Once the generating flag has been OFF this long, the model has clearly
+    // stopped streaming - so an "open tool block" reading is a DOM-churn/parse
+    // artifact, not live output, and must not keep the watcher waiting. Provider
+    // -neutral: while a model is genuinely streaming, gen stays true and this is
+    // never reached.
+    const GEN_STOP_GRACE_MS = 2500;
 
     while (Date.now() - t0 < TIMEOUT) {
       if (A.stop) return { kind: "stopped" };
@@ -168,7 +205,17 @@
       // Sites virtualize their lists, so the absolute assistant count can DROP
       // even as a new reply is added. A count increase still proves a new turn
       // appeared; the generating flag is the reliable "reply has begun" signal.
-      const newReply = P.assistantCount() > base;
+      // A new reply turn exists. Prefer node IDENTITY (virtualization-proof) when
+      // the provider exposes it: the last assistant turn's id differs from the one
+      // captured at send time. Fall back to the count test otherwise. Without this,
+      // ChatGPT's list virtualisation kept assistantCount() <= base for a fresh
+      // reply, so the reliableCounts gate below waited out the full NO_TURN_GRACE
+      // (~30s) before finalising a multi_edit - the "input box stuck until I scroll
+      // up" symptom (scrolling re-attached old turns and bumped the count).
+      const curTok = P.lastAssistantId ? P.lastAssistantId() : undefined;
+      const newReply = (curTok !== undefined)
+        ? (curTok != null && curTok !== A.sendToken)
+        : P.assistantCount() > base;
 
       // Track whether the CURRENT turn has produced anything. Reset when the
       // turn node changes (the PREVIOUS turn's content never counts).
@@ -191,8 +238,22 @@
         }
       }
 
-      // Track text stability (independent of the generating flag).
-      if (d.reply !== lastText) { lastText = d.reply; lastChangeAt = Date.now(); }
+      // Track text stability (independent of the generating flag). Compare the
+      // NORMALISED reply (collapsed whitespace) so cosmetic re-renders of a large
+      // reply - React re-creating the hidden tool <pre>, syntax-highlight passes,
+      // copy-bar text churn - don't count as real "changes" and keep resetting
+      // lastChangeAt. A churn-poisoned lastChangeAt was stalling finalisation of
+      // big multi_edit blocks ~30s (stuckDone never fired); this can only ever
+      // reduce false changes, so short replies / other providers are unaffected.
+      const replyNorm = (d.reply || "").replace(/\s+/g, " ").trim();
+      if (replyNorm !== lastText) { lastText = replyNorm; lastChangeAt = Date.now(); }
+      // How long the generating flag has been OFF. A mid-stream flicker resets
+      // this the instant growth resumes and gen flips back on.
+      if (gen) genFalseSince = 0; else if (!genFalseSince) genFalseSince = Date.now();
+      // DIAG: first gen-off, and count flickers back to true after a gen-off.
+      if (started && !gen && !genOffFirstAt) genOffFirstAt = Date.now();
+      if (prevGen === false && gen && genOffFirstAt) genFlickers++;
+      prevGen = gen;
 
       if (Date.now() - lastLimitScan > 1000) {
         lastLimitScan = Date.now();
@@ -203,6 +264,12 @@
       // Keep waiting while a tool command is still being streamed (opener written
       // but no end marker yet) so we never parse/finalize half a command.
       const blockActive = ZSParse.hasOpenToolBlock(d.reply) && Date.now() - lastChangeAt < 6000;
+      // ...but once generation has clearly stopped (stop indicator gone past the
+      // grace window), stop honoring an "open block" - it is DOM churn, not live
+      // streaming. Lets a finished big block finalise in seconds instead of
+      // waiting out ~30s of re-render churn. Safe: real streaming keeps gen true.
+      const genStopped = !gen && genFalseSince && Date.now() - genFalseSince > GEN_STOP_GRACE_MS;
+      const effectiveBlock = blockActive && !genStopped;
 
       // Fallback: generating flag stuck ON (e.g. a wedged stop button - seen
       // live on Gemini after a mid-write halt) but the text has been frozen for
@@ -210,7 +277,11 @@
       // below entirely: falling through while gen stays true used to reset
       // doneSince every iteration, so the watcher never finalized at all.
       const stuckDone = started && d.reply && Date.now() - lastChangeAt > STABLE_MS;
-      if ((gen || blockActive) && !stuckDone) {
+      if ((gen || effectiveBlock) && !stuckDone) {
+        // DIAG: attribute this wait. genOffFirstAt set ⇒ we are PAST first stop,
+        // so any wait here is tail latency: either gen flickered back on, or an
+        // (effective) open-block reading is holding us.
+        if (genOffFirstAt) { if (gen) waitedFlicker++; else if (effectiveBlock) waitedBlock++; }
         doneSince = 0;
         await sleep(160);
         continue;
@@ -263,7 +334,7 @@
       if (r.length < 400 && P.isTooLongMsg(r)) return { kind: "too_long" };
       if (ZSParse.hasToolSignature(r)) {
         const calls = ZSParse.parseToolCalls(r);
-        if (calls.length) return { kind: "tool", calls, item: d.item };
+        if (calls.length) { finalizeDiag("tool"); return { kind: "tool", calls, item: d.item }; }
         // A half-written command + the site's "Continue" button means the command
         // was truncated mid-stream → resume it rather than reporting bad JSON.
         if (P.findContinueBtn()) return { kind: "truncated", text: r, item: d.item };
@@ -595,10 +666,27 @@
           `Could not switch ${P.displayName} to the required mode. Start a new chat or reload the page, then try again.`);
         return;
       }
-      const prompt = ZS.buildSystemPrompt(A.toolList, P.displayName);
+      const prompt = ZS.buildSystemPrompt(A.toolList, { siteName: P.displayName, profile: P.promptProfile });
       const base = await submitAndGetBase(prompt);
       decorate.sweep(); // show the animated "Starting Up" chip immediately
-      const startRes = await waitForResponse(base);
+      let startRes = await waitForResponse(base);
+
+      // Cautious models (ChatGPT especially) often refuse the FIRST turn with a
+      // plain-text "I don't have access to Studio / this extension" instead of
+      // emitting list_commands - validated live. A single "just try it" nudge
+      // reliably unblocks them (the same thing a user does by hand). So if the
+      // bootstrap reply is NOT a command, auto-nudge and re-wait, a couple of
+      // times, before giving up. We only nudge on non-tool replies; a model that
+      // jumped straight to a (different) command is left to the normal flow.
+      let bootstrapNudges = 0;
+      while (startRes.kind !== "tool" && bootstrapNudges < 3 && !A.stop) {
+        bootstrapNudges++;
+        diag("bootstrap.nudge", { kind: startRes.kind, n: bootstrapNudges });
+        const nudgeBase = await submitAndGetBase(ZS.FEEDBACK.bootstrapNudge);
+        decorate.sweep();
+        startRes = await waitForResponse(nudgeBase);
+      }
+
       // If the model calls list_commands as instructed, run it and wait for the "ready" reply.
       const firstName = startRes.calls && startRes.calls[0] && startRes.calls[0].tool;
       if (startRes.kind === "tool" && startRes.calls && startRes.calls.length === 1 &&
@@ -1389,6 +1477,7 @@
       // A fresh user message = fresh intent: clear any previous manual stop so
       // the loop is allowed to run again.
       A.userStopped = false;
+      captureSendToken(); // identity of the assistant turn before this reply
       setTimeout(() => { if (!A.running) agentLoop(base); }, 300);
     },
     onNativeStop: () => {
@@ -1436,6 +1525,9 @@
     item.dataset.zResume = "1";
     item.dataset.zResumeLen = String(len);
     diag("autoResume", { len });
+    // The reply turn is ALREADY present - act on it immediately. Null token makes
+    // the identity-based newReply test unconditionally true (any current id != null).
+    A.sendToken = null;
     agentLoop(P.assistantCount() - 1);
   }, 1000);
 

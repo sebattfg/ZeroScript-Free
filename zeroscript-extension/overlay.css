@@ -234,6 +234,11 @@ div[contenteditable='true'].zs-typing { caret-color: transparent !important; }
    .zs-cmd-mask and this rule keeps every recreated code-block hidden with no
    flash. Inert on DeepSeek (no such elements). */
 message-content.zs-cmd-mask code-block { display: none !important; }
+/* ChatGPT: React re-creates the <pre> code blocks inside a reply on every
+   token, wiping any per-element .zs-tool-hide class. The provider marks the
+   .markdown container with .zs-cmd-mask (it keeps its identity), and this rule
+   keeps every recreated <pre> hidden with no flash. Inert on other sites. */
+.markdown.zs-cmd-mask pre { display: none !important; }
 
 /* category accent colour (left stripe + icon tint) */
 .zs-chip.cat-roblox   { --cat: #818cf8; }

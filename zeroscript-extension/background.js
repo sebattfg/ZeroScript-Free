@@ -13,6 +13,9 @@ const URL = `ws://127.0.0.1:${PORT}`;
 // Chat sites where a ZeroScript provider content script runs. Status pushes go
 // to every tab matching these. Add the new provider's URL pattern here (and in
 // manifest.json content_scripts + host_permissions) when integrating another AI.
+// ChatGPT is temporarily disabled (kept in providers/chatgpt.js but not injected
+// or granted host access) - re-add "https://chatgpt.com/*", "https://chat.openai.com/*"
+// here, in manifest host_permissions, and a content_scripts entry to re-enable.
 const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://gemini.google.com/*"];
 
 const RECONNECT_MIN = 1000;
