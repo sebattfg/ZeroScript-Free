@@ -61,9 +61,7 @@
     { name: "DeepSeek", url: "https://chat.deepseek.com/", emoji: "🐋" },
     { name: "Gemini", url: "https://gemini.google.com/app", emoji: "✦" },
     { name: "Kimi", url: "https://www.kimi.com/", emoji: "🌙" },
-    // GLM (chat.z.ai) is implemented but DISABLED for the final client; re-add
-    // it here + in manifest.json + background.js PROVIDER_URLS to re-enable.
-    // { name: "GLM", url: "https://chat.z.ai/", emoji: "🅩" },
+    { name: "GLM", url: "https://chat.z.ai/", emoji: "🅩" },
   ];
 
   const A = {

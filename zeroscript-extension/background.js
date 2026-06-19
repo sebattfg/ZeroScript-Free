@@ -13,10 +13,7 @@ const URL = `ws://127.0.0.1:${PORT}`;
 // Chat sites where a ZeroScript provider content script runs. Status pushes go
 // to every tab matching these. Add the new provider's URL pattern here (and in
 // manifest.json content_scripts + host_permissions) when integrating another AI.
-// GLM (chat.z.ai) is implemented (providers/glm.js) but DISABLED for the final
-// client - re-add "https://chat.z.ai/*" here AND in manifest.json + main.js
-// AI_SITES to re-enable it.
-const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://gemini.google.com/*", "https://www.kimi.com/*", "https://kimi.com/*"];
+const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://gemini.google.com/*", "https://www.kimi.com/*", "https://kimi.com/*", "https://chat.z.ai/*"];
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 15000;
