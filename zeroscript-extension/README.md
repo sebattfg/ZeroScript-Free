@@ -1,8 +1,8 @@
-# ZeroScript Free DeepSeek × Roblox Studio Agent
+# ZeroScript Free - AI Roblox Studio Agent (DeepSeek, Gemini, Kimi, GLM)
 
-Control Roblox Studio with AI directly from DeepSeek. Just describe what you want to build, the agent does the rest.
+Control Roblox Studio with AI, for free. ZeroScript turns a normal AI chat (DeepSeek, Google Gemini, Kimi, or GLM) into an agent that builds and scripts your Roblox game for you: just describe what you want, and it reads/edits scripts, runs Luau, inspects the game tree, and generates assets directly in Roblox Studio. No API key, no terminal, no coding required.
 
-Google Gemini, Kimi (Moonshot AI) and GLM (Z.ai) are also supported. Some can be unstable: Gemini tends to stop using the Roblox tools after a while in long sessions, and Kimi sometimes reaches for its own native tools instead of the Roblox commands. DeepSeek is the recommended provider.
+It's a Chrome/Edge browser extension plus a small local bridge that connects the chat to Roblox Studio through the official MCP server. **DeepSeek is the recommended provider.** Gemini, Kimi and GLM also work but can be less stable: Gemini tends to stop using the Roblox tools in long sessions, and Kimi sometimes reaches for its own native tools instead of the Roblox commands.
 
 ## Setup
 
