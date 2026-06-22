@@ -46,14 +46,27 @@
 #zs-dot.warn { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
 #zs-dot.off { background: #6b7280; }
 
-/* tip / ko-fi button */
+/* ── header icon buttons (sites / gear / kofi / discord) ───── */
+#zs-sites, #zs-gear, #zs-kofi, #zs-discord {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: none; padding: 0;
+  border-radius: 8px; border-width: 1px; border-style: solid;
+  font-size: 12px; line-height: 1; cursor: pointer;
+  transition: filter 0.15s ease, background 0.15s ease;
+  text-decoration: none;
+}
 #zs-kofi {
   background: rgba(255, 105, 135, 0.15); color: #ff8fa3;
-  border: 1px solid rgba(255, 105, 135, 0.4); border-radius: 8px;
-  padding: 3px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
-  transition: filter 0.15s ease, background 0.15s ease;
+  border-color: rgba(255, 105, 135, 0.4); font-size: 13px;
 }
 #zs-kofi:hover { background: rgba(255, 105, 135, 0.28); filter: brightness(1.1); }
+
+/* Discord icon button */
+#zs-discord {
+  background: rgba(88, 101, 242, 0.15); color: #a5b4fc;
+  border-color: rgba(88, 101, 242, 0.4);
+}
+#zs-discord:hover { background: rgba(88, 101, 242, 0.28); filter: brightness(1.1); }
 
 /* tip menu (Ko-fi + Robux game passes) */
 #zs-tip-menu {
@@ -82,9 +95,7 @@
 /* other-AI-sites button */
 #zs-sites {
   background: rgba(255, 255, 255, 0.06); color: #c7d2fe;
-  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
-  padding: 3px 8px; font-size: 13px; line-height: 1; cursor: pointer;
-  transition: filter 0.15s ease, background 0.15s ease;
+  border-color: rgba(255, 255, 255, 0.14); font-size: 13px;
 }
 #zs-sites:hover { background: rgba(255, 255, 255, 0.13); filter: brightness(1.1); }
 
@@ -115,9 +126,7 @@ button.zs-site-opt:hover { background: rgba(129, 140, 248, 0.24); filter: bright
 /* settings (gear) button */
 #zs-gear {
   background: rgba(255, 255, 255, 0.06); color: #c7d2fe;
-  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
-  padding: 3px 8px; font-size: 13px; line-height: 1; cursor: pointer;
-  transition: filter 0.15s ease, background 0.15s ease;
+  border-color: rgba(255, 255, 255, 0.14); font-size: 13px;
 }
 #zs-gear:hover { background: rgba(255, 255, 255, 0.13); filter: brightness(1.1); }
 

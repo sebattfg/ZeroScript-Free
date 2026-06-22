@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "ZeroScript Free DeepSeek × Roblox Studio Agent",
+  "name": "ZeroScript Free × Roblox Studio Agent",
   "version": "1.3.0",
   "description": "Turn DeepSeek, Gemini, Kimi or GLM into a Roblox Studio agent that drives Studio through a local bridge.",
   "permissions": ["storage"],
@@ -24,7 +24,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "ZeroScript Free (DeepSeek)",
+    "default_title": "ZeroScript Free",
     "default_icon": {
       "16": "icon.png",
       "48": "icon.png",
