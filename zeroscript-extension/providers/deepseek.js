@@ -129,7 +129,18 @@ const ZSProvider = (() => {
   const assistantItems = () => allItems().filter(isAssistantItem);
   const assistantCount = () => assistantItems().length;
   const userCount = () => allItems().filter(isUserItem).length;
-  const getEditor = () => document.querySelector(S.editor);
+  // Scope to the SITE's composer only: never match ZeroScript's own injected
+  // UI (e.g. the settings textarea #zs-set-text in #zs-root). Otherwise on the
+  // login/OAuth pages - which have no site textarea - getEditor() would return
+  // our own panel's textarea, defeating the "not on a chat page" guard in the
+  // send hooks and letting them swallow the DeepSeek "Log in" click (which is
+  // itself a .ds-button--primary, the same selector as the send button).
+  const getEditor = () => {
+    for (const e of document.querySelectorAll(S.editor)) {
+      if (!e.closest("#zs-root")) return e;
+    }
+    return null;
+  };
   // The composer is a <textarea>, so its live content is .value (NOT textContent).
   const editorText = () => {
     const e = getEditor();

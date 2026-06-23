@@ -118,7 +118,19 @@ const ZSProvider = (() => {
   const assistantItems = () => [...document.querySelectorAll(S.assistantItem)];
   const assistantCount = () => assistantItems().length;
   const userCount = () => document.querySelectorAll(S.userItem).length;
-  const getEditor = () => document.querySelector(S.editor) || document.querySelector(".ql-editor");
+  // Scope to the SITE's composer only: skip ZeroScript's own injected UI (the
+  // settings textarea #zs-set-text in #zs-root). On login/OAuth pages with no
+  // site editor this returns null, keeping the "not on a chat page" guard in
+  // the send hooks intact (otherwise our own textarea would defeat it and the
+  // hooks could swallow the site's login button).
+  const getEditor = () => {
+    for (const sel of [S.editor, ".ql-editor"]) {
+      for (const e of document.querySelectorAll(sel)) {
+        if (!e.closest("#zs-root")) return e;
+      }
+    }
+    return null;
+  };
   const editorText = () => {
     const e = getEditor();
     return e ? e.textContent || "" : "";
