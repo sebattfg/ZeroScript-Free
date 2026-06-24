@@ -156,6 +156,20 @@ const ZSProvider = (() => {
     document.querySelector(S.composer) ||
     (getEditor() ? getEditor().closest("form, .relative") : null);
 
+  // Integrated status bar (same approach as Kimi): GLM is a Svelte app that
+  // reconciles the composer subtree, so we must NOT insert our #zs-bar into it
+  // (a foreign node in a framework-managed parent risks the diff nesting the
+  // composer inside the bar). barAnchor() returns the rounded composer CARD - the
+  // `flex flex-col … rounded-xl` ancestor of the textarea, which holds the input
+  // box then the toolbar row - and the core (placeBar anchored branch) keeps the
+  // bar in #zs-root, positions it to hug that card's top edge at full width, and
+  // reserves the strip with padding-top. Validated live: full width, hugs top,
+  // pushes the input down with no overlap.
+  function barAnchor() {
+    const ed = getEditor();
+    return (ed && ed.closest('.flex-col[class*="rounded"]')) || null;
+  }
+
   // ── Input lock ────────────────────────────────────────────────────────────
   // The textarea is a real <textarea>: `readonly` blocks the user but is ignored
   // by the native prototype setter used in setTextareaValue(), so our own
@@ -397,9 +411,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return; // existing conversation → not ours to gate
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -426,9 +438,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return;
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -478,6 +488,15 @@ const ZSProvider = (() => {
     id: "glm",
     displayName: "GLM",
     timings,
+    // Shown as a permanent, non-intrusive "⚠ unstable" notice in the bar. The
+    // z.ai free endpoint is frequently at capacity: its backend returns an HTML
+    // error page instead of JSON, so the reply shows "No response, please try
+    // again later" (a z.ai server issue, NOT the extension). Prefer the GLM-5.2
+    // model and retry off-peak.
+    unstableWarning:
+      "GLM (z.ai) can be unstable: when its servers are busy a turn fails with " +
+      "\"No response, please try again later\" - that's a z.ai issue, not the extension. " +
+      "Prefer the GLM-5.2 model and retry in a moment (or off-peak) if it happens.",
     // Svelte re-renders the reply's markdown subtree on every update, wiping any
     // chip placed inside it. Anchor chips at the turn-element level instead.
     chipAtItemLevel: true,
@@ -490,7 +509,7 @@ const ZSProvider = (() => {
     assistantCount, userCount, lastAssistant, lastAssistantId, readAssistant,
     streamLen, snapshot,
     // composer / state
-    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame,
+    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame, barAnchor,
     setInputLock, typeAndSend, stopGeneration,
     isGenerating, isBusyNow, isHardGenerating,
     enforceComposer, ensureComposerReady,

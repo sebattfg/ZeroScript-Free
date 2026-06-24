@@ -90,8 +90,8 @@ Go to https://chat.deepseek.com (recommended), https://gemini.google.com, https:
 
 | Dot | Meaning |
 |-----|---------|
-| Green | Bridge + Studio ready |
-| Yellow | Bridge OK - open Roblox Studio |
+| Green | Bridge + Studio ready (a place is open) |
+| Yellow | Bridge OK, but Studio isn't usable yet - open Roblox Studio, load a place, or enable its MCP server (hover the dot for the exact reason) |
 | Grey | Bridge offline - run start.bat |
 
 ## Requirements

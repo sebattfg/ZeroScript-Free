@@ -12,10 +12,12 @@
 //    .ds-markdown OUTSIDE that container (so drafts inside reasoning are ignored).
 //  - The input is a real <textarea> (not a contenteditable): we set its value via
 //    the native setter + an input event, then click the primary send button.
-//  - "generating" is detected from the primary footer button: it shows a <rect>
-//    (stop square) while streaming and a <path> (send arrow) when idle; .ds-loading
-//    covers the brief spin-up. During the DeepThink REASONING phase there is NO
-//    stop button / spinner at all - only text growth says "still alive".
+//  - "generating" is detected from the primary footer button: while streaming it
+//    shows a STOP glyph (a <rect> in old builds, a rounded-square <path> starting
+//    "M2…" in V4) and when idle a SEND arrow (<path> starting "M8…"); see
+//    isStopBtn(). .ds-loading covers the brief spin-up. During the DeepThink
+//    REASONING phase there is NO stop button / spinner at all - only text growth
+//    says "still alive".
 // eslint-disable-next-line no-unused-vars
 const ZSProvider = (() => {
   "use strict";
@@ -197,7 +199,34 @@ const ZSProvider = (() => {
     return f;
   }
 
-  // ── Composer mode enforcement (force Expert + DeepThink ON, Search OFF) ──
+  // Where the core inserts its in-flow status bar. The INPUT BOX = the lowest
+  // ancestor of the textarea that also holds the send button but NOT the model
+  // tabs (so the rounded composer box, excluding Instant/Expert/Vision). It is a
+  // vertical flow container (textarea + the DeepThink/Search pill row), so adding
+  // the bar as its FIRST child reflows cleanly and spans the full input width.
+  function barMount() {
+    const ta = getEditor();
+    if (!ta) return null;
+    const send = document.querySelector(S.sendBtn);
+    const group = document.querySelector(S.modeRadioGroup);
+    let box = ta.parentElement;
+    while (box && box !== document.body) {
+      const holdsSend = !send || box.contains(send);
+      const holdsTabs = group && box.contains(group);
+      if (holdsSend && !holdsTabs) break; // the input box, without the tabs
+      box = box.parentElement;
+    }
+    if (!box || box === document.body) box = ta.parentElement;
+    if (!box) return null;
+    // Insert before the first REAL child (skip our own bar if already mounted,
+    // otherwise we'd try to insert the bar before itself every frame).
+    let before = box.firstElementChild;
+    if (before && before.id === "zs-bar") before = before.nextElementSibling;
+    return { parent: box, before, inside: true }; // lives INSIDE the input box
+  }
+
+  // ── Composer mode: pick Expert (most powerful) at startup, Search OFF ──
+  // Driven once at session start only; the user can switch the model tab after.
   const nodeText = (n) => (n && (n.innerText || n.textContent || "").trim()) || "";
   const isPressedOn = (n) =>
     n && (n.getAttribute("aria-pressed") === "true" ||
@@ -235,41 +264,38 @@ const ZSProvider = (() => {
   }
 
   function enforceComposer(reason) {
+    // We only DRIVE the composer when given a reason (i.e. at session startup).
+    // Per-sweep calls pass no reason and are READ-ONLY: that leaves the user free
+    // to switch the model tab afterwards (e.g. Expert → Instant to turn thinking
+    // off) without ZeroScript reverting their choice every frame.
+    if (!reason) return composerModeState();
     try {
+      // Pick the most powerful model for the agent: Expert (deep reasoning). In
+      // the current DeepSeek V4 UI, Expert IS the thinking model; the three tabs
+      // are Instant / Expert / Vision and there is no separate DeepThink toggle.
       const expert = findExpertRadio();
       if (expert && expert.getAttribute("aria-checked") !== "true") {
-        try { expert.click(); } catch (e) { if (reason) diag("mode_fallback", { reason, target: "expert", error: String(e && e.message || e) }); }
+        try { expert.click(); } catch (e) { diag("mode_fallback", { reason, target: "expert", error: String(e && e.message || e) }); }
       }
 
-      // DeepThink ("Pensée profonde / Réflexion"): make sure it is ON, then hide
-      // it so the user can't turn it off. DeepSeek currently uses aria-pressed,
-      // older notes expected aria-checked; handle both.
+      // Legacy DeepSeek UI only: if a separate DeepThink toggle still exists, turn
+      // it ON once. We do NOT hide it anymore, so thinking stays user-toggleable.
       const deepThink = findToggleBy(RE.deepThink);
-      if (deepThink) {
-        if (isPressedOff(deepThink)) {
-          try { deepThink.click(); } catch (e) { if (reason) diag("mode_fallback", { reason, target: "deepThink", error: String(e && e.message || e) }); }
-        }
-        deepThink.classList.add("zs-hide-el");
-      } else if (reason) {
-        diag("mode_fallback", { reason, target: "deepThink", error: "toggle not found" });
+      if (deepThink && isPressedOff(deepThink)) {
+        try { deepThink.click(); } catch (e) { diag("mode_fallback", { reason, target: "deepThink", error: String(e && e.message || e) }); }
       }
 
-      // Search is visible in Rapide and disappears after Expert is selected
-      // (validated live). If present, force it off; if absent in Expert, OK.
+      // Search must be off (it derails the agent). Best-effort; absent in Expert.
       const search = findToggleBy(RE.searchMode);
-      if (search) {
-        if (isPressedOn(search)) {
-          try { search.click(); } catch (e) { if (reason) diag("mode_fallback", { reason, target: "search", error: String(e && e.message || e) }); }
-        }
-      } else if (reason && (!expert || expert.getAttribute("aria-checked") !== "true")) {
-        diag("mode_fallback", { reason, target: "search", error: "toggle not found before Expert was confirmed" });
+      if (search && isPressedOn(search)) {
+        try { search.click(); } catch (e) { diag("mode_fallback", { reason, target: "search", error: String(e && e.message || e) }); }
       }
 
       const state = composerModeState();
-      if (reason) diag("mode_enforce", { reason, ...state });
+      diag("mode_enforce", { reason, ...state });
       return state;
     } catch (e) {
-      if (reason) diag("mode_fallback", { reason, target: "composer", error: String(e && e.message || e) });
+      diag("mode_fallback", { reason, target: "composer", error: String(e && e.message || e) });
       return composerModeState();
     }
   }
@@ -280,12 +306,29 @@ const ZSProvider = (() => {
     let state = composerModeState();
     for (let i = 0; i < 12; i++) {
       state = enforceComposer(reason);
-      if (state.expertOn && state.deepThinkOn && state.searchOff) break;
+      // Ready as soon as Expert is on and Search is off. DeepThink is only
+      // required if a legacy toggle is actually present (V4 has none).
+      if (state.expertOn && state.searchOff && (state.deepThinkOn || !state.deepThinkFound)) break;
       await sleep(120);
     }
     state = composerModeState();
     diag("mode_ready", { reason, ...state });
     return { ...state, ready: state.expertOn };
+  }
+
+  // DeepSeek's footer button doubles as SEND (an upward arrow) and STOP (a
+  // filled rounded square). Older builds drew the stop glyph with a <rect>; the
+  // current V4 build draws BOTH as a <path>: the send arrow's path starts
+  // mid-glyph ("M8.31…"), the stop square's path starts at a corner near the
+  // origin ("M2 …"). We treat the button as "stop" when it carries a <rect> OR a
+  // square-ish path (leading move to x ≤ 3) - never the M8 arrow. One-liner to
+  // update if DeepSeek reskins the footer button.
+  function isStopBtn(btn) {
+    if (!btn) return false;
+    if (btn.querySelector("rect")) return true; // legacy stop square
+    const p = btn.querySelector("path");
+    if (!p) return false;
+    return /^\s*M\s*[0-3][\s.]/.test(p.getAttribute("d") || "");
   }
 
   // ── Generation / completion detection ────────────────────────────────────
@@ -353,7 +396,7 @@ const ZSProvider = (() => {
   function isGenerating() {
     if (document.querySelector(S.generating)) return true; // spin-up spinner
     const btn = document.querySelector(S.sendBtn);
-    if (btn && btn.querySelector("rect")) return true;     // answer phase: stop square
+    if (isStopBtn(btn)) return true;                       // answer phase: stop square
     sampleStream();
     if (reasoningInProgress(lastAssistant())) return grewWithin(timings.REASON_IDLE_MS);
     return grewWithin(timings.GEN_IDLE_MS);
@@ -365,7 +408,7 @@ const ZSProvider = (() => {
   function isBusyNow() {
     if (document.querySelector(S.generating)) return true;
     const btn = document.querySelector(S.sendBtn);
-    if (btn && btn.querySelector("rect")) return true;
+    if (isStopBtn(btn)) return true;
     sampleStream();
     if (!reasoningInProgress(lastAssistant())) return false; // answer present / stopped → free
     return grewWithin(timings.REASON_IDLE_MS); // reasoning: live only while it keeps growing
@@ -374,8 +417,7 @@ const ZSProvider = (() => {
   // HARD signal only (the visible stop-square): never true just because a
   // conversation (re)loads or the user scrolls. Used for the Stop button.
   function isHardGenerating() {
-    const sb = document.querySelector(S.sendBtn);
-    return !!(sb && sb.querySelector("rect"));
+    return isStopBtn(document.querySelector(S.sendBtn));
   }
 
   // Lightweight turn snapshot for diagnostics (reasoning/reply lengths).
@@ -451,7 +493,7 @@ const ZSProvider = (() => {
   function clickSendButton() {
     if (isBusyNow()) return false;
     const btn = document.querySelector(S.sendBtn);
-    if (btn && !btn.querySelector("rect") && btn.getAttribute("aria-disabled") !== "true") {
+    if (btn && !isStopBtn(btn) && btn.getAttribute("aria-disabled") !== "true") {
       btn.click();
       return true;
     }
@@ -466,7 +508,7 @@ const ZSProvider = (() => {
     // Wait for React to re-enable the send button (poll up to 800ms).
     await waitFor(() => {
       const btn = document.querySelector(S.sendBtn);
-      return btn && btn.getAttribute("aria-disabled") !== "true" && !btn.querySelector("rect");
+      return btn && btn.getAttribute("aria-disabled") !== "true" && !isStopBtn(btn);
     }, 800);
     if (!clickSendButton() && !isBusyNow()) {
       pressEnter(editor);
@@ -477,7 +519,7 @@ const ZSProvider = (() => {
   // we never accidentally re-trigger a send.
   function stopGeneration() {
     const b = document.querySelector(S.stopBtn);
-    if (b && b.querySelector("rect")) try { b.click(); } catch {}
+    if (isStopBtn(b)) try { b.click(); } catch {}
   }
 
   // ── Error / limit detection (site chrome only, never model output) ───────
@@ -606,9 +648,7 @@ const ZSProvider = (() => {
         // blank chat: an existing conversation isn't ours to gate.
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return; // existing conversation → let the site handle it
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
 
@@ -632,8 +672,8 @@ const ZSProvider = (() => {
         }
         const btn = t && t.closest && t.closest(S.sendBtn);
         if (!btn) return;
-        // DeepSeek's stop button shares the send button's spot (<rect> = stop).
-        if (btn.querySelector("rect")) {
+        // DeepSeek's stop button shares the send button's spot (square = stop).
+        if (isStopBtn(btn)) {
           handlers.onNativeStop();
           return;
         }
@@ -641,9 +681,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return;
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -711,7 +749,7 @@ const ZSProvider = (() => {
     assistantCount, userCount, lastAssistant, readAssistant,
     streamLen, snapshot,
     // composer / state
-    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame,
+    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame, barMount,
     setInputLock, typeAndSend, stopGeneration,
     isGenerating, isBusyNow, isHardGenerating,
     enforceComposer, ensureComposerReady,

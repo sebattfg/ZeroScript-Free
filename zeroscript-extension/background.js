@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// background.js — service worker.
+// background.js - service worker.
 // Owns ONE resilient WebSocket to the local bridge (ws://127.0.0.1:PORT).
 // Keeping the socket here (not in the content script) avoids https→ws mixed
 // content issues and centralises reconnect / timeout logic.
@@ -30,10 +30,14 @@ const pending = new Map(); // id -> {resolve, timer}
 let toolsCache = [];
 let mcpAlive = false;
 let serversCache = [];
-// true/false = Roblox Studio connected to the MCP server or not; null = unknown.
+// true/false = a PLACE is loaded and usable in Roblox Studio; null = unknown.
 // The MCP process stays alive when Studio is closed or its MCP option is off,
 // so this is probed separately (bridge "studio_status").
 let studioConnected = null;
+// true/false = a Roblox Studio app is connected to the MCP server at all; null =
+// unknown. studioApp=true with studioConnected=false means "Studio open but no
+// place"; studioApp=false means "Studio closed OR its MCP option disabled".
+let studioApp = null;
 
 function log(...a) {
   console.log("[zs-bg]", ...a);
@@ -75,6 +79,7 @@ function connect() {
     connected = false;
     mcpAlive = false;
     studioConnected = null;
+    studioApp = null;
     serversCache = [];
     stopHeartbeat();
     failAllPending("bridge connection closed");
@@ -114,7 +119,7 @@ function stopHeartbeat() {
 function waitForConnection(timeout = 8000) {
   return new Promise((resolve) => {
     if (connected && ws && ws.readyState === WebSocket.OPEN) return resolve(true);
-    connect(); // nudge a (re)connection — important after a worker wake-up
+    connect(); // nudge a (re)connection - important after a worker wake-up
     const t0 = Date.now();
     const iv = setInterval(() => {
       if (connected && ws && ws.readyState === WebSocket.OPEN) {
@@ -131,7 +136,7 @@ function waitForConnection(timeout = 8000) {
 // ── request/response over the socket ────────────────────────────────────
 async function send(obj, timeout = REQUEST_TIMEOUT_DEFAULT) {
   // The MV3 service worker can be suspended; the first message after a wake-up
-  // arrives before the socket has re-opened. Wait for it instead of failing —
+  // arrives before the socket has re-opened. Wait for it instead of failing -
   // otherwise Kimi wrongly hears "bridge offline".
   if (!connected || !ws || ws.readyState !== WebSocket.OPEN) {
     await waitForConnection(8000);
@@ -181,6 +186,9 @@ async function refreshStudioStatus() {
 function handleBridgeMessage(msg) {
   if ("studio" in msg && (typeof msg.studio === "boolean" || msg.studio === null)) {
     studioConnected = msg.studio;
+  }
+  if ("studio_app" in msg && (typeof msg.studio_app === "boolean" || msg.studio_app === null)) {
+    studioApp = msg.studio_app;
   }
   if (msg.type === "studio_status") {
     resolvePending(msg.id, { ok: true, studio: studioConnected });
@@ -244,7 +252,7 @@ function failAllPending(reason) {
 
 // ── status push to any open DeepSeek tab + popup ─────────────────────────
 function statusObj() {
-  return { type: "zs-status", connected, mcpAlive, studio: studioConnected, tools: toolsCache.length, servers: serversCache };
+  return { type: "zs-status", connected, mcpAlive, studio: studioConnected, studioApp, tools: toolsCache.length, servers: serversCache };
 }
 
 function broadcastStatus() {

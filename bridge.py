@@ -368,15 +368,30 @@ clients = set()
 # The MCP server process stays alive even when Roblox Studio is closed or its
 # MCP option is disabled - tool calls then return instantly with an "Unable to
 # find an active Studio instance" text. So "mcp_alive" alone is misleading.
-# list_roblox_studios is instant and side-effect-free: studios == [] means no
-# Studio is connected (closed, no place open, or MCP disabled in Studio).
+#
+# TWO LEVELS (validated live 2026-06):
+#  - list_roblox_studios: instant, side-effect-free. studios == [] means NO Studio
+#    is connected to the MCP (app closed, OR its "Studio as MCP Server" option is
+#    disabled - the two are indistinguishable at this layer). A non-empty list
+#    means a Studio app IS connected, BUT note its entry stays present (active:true)
+#    even when no place is open - only its "name" goes null. So presence != usable.
+#  - get_studio_state: tells whether a PLACE is actually loaded. With a place open
+#    it returns "Available DataModels: ..."; with the Studio on the home screen (or
+#    the active place closed) it returns "...doesn't have a place opened / previously
+#    active Studio has disconnected". That is the authoritative "place loaded" signal
+#    (same phrase the call path already recognises in core/main.js).
 STUDIO_PROBE_TOOL = "list_roblox_studios"
+STUDIO_STATE_TOOL = "get_studio_state"
+# Substrings get_studio_state emits when a Studio is connected but no place is open.
+NO_PLACE_MARKERS = ("doesn't have a place", "no place opened", "place opened",
+                    "has disconnected", "no active studio")
 
 
-def probe_studio():
-    """True/False = Studio connected/not; None = unknown (probe unavailable/busy)."""
+def _probe_tool_text(tool):
+    """Call a side-effect-free probe tool with no args; return its text, or None if
+    the tool is unavailable / the server is busy / it errored (best-effort)."""
     with mgr.index_lock:
-        entry = mgr.index.get(STUDIO_PROBE_TOOL)
+        entry = mgr.index.get(tool)
     if entry is None:
         return None
     holder, real_name = entry
@@ -390,13 +405,37 @@ def probe_studio():
         if not msg or msg.get("error"):
             return None
         content = msg.get("result", {}).get("content", [])
-        text = "\n".join(it.get("text", "") for it in content if it.get("type") == "text")
-        data = json.loads(text)
-        return bool(data.get("studios"))
+        return "\n".join(it.get("text", "") for it in content if it.get("type") == "text")
     except Exception:
         return None
     finally:
         holder.call_lock.release()
+
+
+def probe_studio():
+    """Two-level Studio connectivity. Returns {"app": x, "place": y} where each is
+    True / False / None (None = unknown: probe tool missing or server busy).
+      app   - a Roblox Studio instance is connected to the MCP server. False = Studio
+              closed OR its MCP-server option disabled (indistinguishable here).
+      place - a place/datamodel is actually loaded and usable. False = Studio open on
+              the home screen, or the active place was closed. Only meaningful when
+              app is True (when app is False/None, place mirrors it)."""
+    text = _probe_tool_text(STUDIO_PROBE_TOOL)
+    if text is None:
+        return {"app": None, "place": None}
+    try:
+        studios = json.loads(text).get("studios") or []
+    except Exception:
+        return {"app": None, "place": None}
+    if not studios:
+        return {"app": False, "place": False}
+    # A Studio app is connected - now check whether a place is actually open.
+    state = _probe_tool_text(STUDIO_STATE_TOOL)
+    if state is None:
+        return {"app": True, "place": None}
+    low = state.lower()
+    place = not any(m in low for m in NO_PLACE_MARKERS)
+    return {"app": True, "place": place}
 
 
 def safe_call(name, arguments, timeout):
@@ -415,10 +454,11 @@ async def handler(ws):
     clients.add(ws)
     log(f"extension connected  ({peer})  [{len(clients)} client(s)]", "gr")
     try:
+        _st = await asyncio.to_thread(probe_studio)
         await ws.send(json.dumps({
             "type": "connected",
             "mcp_alive": mgr.any_alive(),
-            "studio": await asyncio.to_thread(probe_studio),
+            "studio": _st["place"], "studio_app": _st["app"],
             "servers": mgr.health(),
             "tools": mgr.list_tools(),
             "port": PORT,
@@ -438,7 +478,8 @@ async def handler(ws):
                 studio = await asyncio.to_thread(probe_studio)
                 await ws.send(json.dumps({
                     "type": "studio_status", "id": rid,
-                    "studio": studio, "mcp_alive": mgr.any_alive(),
+                    "studio": studio["place"], "studio_app": studio["app"],
+                    "mcp_alive": mgr.any_alive(),
                 }))
 
             elif mtype == "list_tools":
@@ -447,10 +488,11 @@ async def handler(ws):
                 except Exception as e:
                     tools = mgr.list_tools()
                     log(f"list_tools error: {e}", "yl")
+                _st = await asyncio.to_thread(probe_studio)
                 await ws.send(json.dumps({
                     "type": "tools", "id": rid,
                     "tools": tools, "mcp_alive": mgr.any_alive(),
-                    "studio": await asyncio.to_thread(probe_studio),
+                    "studio": _st["place"], "studio_app": _st["app"],
                     "servers": mgr.health(),
                 }))
 

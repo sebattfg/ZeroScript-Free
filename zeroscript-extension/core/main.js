@@ -45,7 +45,7 @@
   const KOFI_URL = "https://ko-fi.com/sebattfg";
   // GitHub releases page - where users download the Bridge + start.bat.
   const GITHUB_URL = "https://github.com/sebattfg/ZeroScript-Free";
-  // YouTube tutorial — how to set up the Bridge.
+  // YouTube tutorial - how to set up the Bridge.
   const VIDEO_URL = "https://youtu.be/QaViHSqzy5Q";
   // Roblox "tip" Game Passes - the native currency for the audience.
   const ROBUX_PASSES = [
@@ -67,6 +67,12 @@
   const A = {
     running: false,
     stop: false,
+    // stopping: the user clicked Stop and we are winding the loop down. Set the
+    // instant the button is clicked so the bar can show immediate "Stopping…"
+    // feedback and keep the button steady (no flicker) until the loop's finally
+    // clears it - the live generation signal toggles off/on as the loop drains,
+    // which otherwise made the Stop button vanish then reappear.
+    stopping: false,
     // userStopped: the user deliberately halted generation - via our "■ Stop"
     // button OR the site's native stop. While set, the auto-resume watchdog
     // must NOT relaunch or re-run a tool from the halted turn.
@@ -77,6 +83,16 @@
     lastGenAt: 0,
     started: false,
     starting: false,
+    // The conversation a bootstrap belongs to + a generation counter. If the user
+    // navigates to another chat mid/post-bootstrap, syncSessionState bumps the
+    // counter (invalidating the in-flight startSession) and clears `starting`, so
+    // the new chat shows its own state instead of a stale "Starting…".
+    startingKey: null,
+    startGen: 0,
+    // The conversation a RUNNING loop is bound to. If the user opens a new, empty
+    // chat via the site's own button, syncSessionState abandons the loop so the
+    // fresh chat shows "Start", not a stale "Agent active".
+    loopKey: null,
     injecting: false,
     toolRunning: false,
     toolStart: 0,
@@ -147,7 +163,7 @@
           if (!(await waitFor(() => !document.hidden || A.stop, 600000)) || A.stop) break;
         }
         await P.typeAndSend(text);
-        // The site clears the textarea as soon as the send is accepted — faster
+        // The site clears the textarea as soon as the send is accepted - faster
         // and more reliable than waiting for a DOM turn count change.
         await waitFor(() => {
           if (P.editorText().trim() === "") messageSent = true;
@@ -447,7 +463,23 @@
         const props = (t.inputSchema && t.inputSchema.properties) || {};
         const req = new Set((t.inputSchema && t.inputSchema.required) || []);
         const params = Object.entries(props)
-          .map(([k, v]) => `    ${k}${req.has(k) ? "" : "?"}: ${v.type || "any"}${v.description ? " - " + v.description : ""}`)
+          .map(([k, v]) => {
+            // For an array of OBJECTS, surface the item's field shape - otherwise
+            // the model is blind to it (just "array") and guesses the per-step
+            // structure wrong (the real cause of "Unknown … action: nil").
+            const items = v.items && typeof v.items === "object" ? v.items : null;
+            const itemProps = items && items.properties;
+            let shape = "";
+            if (v.type === "array" && itemProps) {
+              const fields = Object.entries(itemProps).map(([ik, iv]) => {
+                const itemReq = new Set(items.required || []);
+                const en = Array.isArray(iv.enum) && iv.enum.length <= 12 ? `(${iv.enum.join("|")})` : (iv.type || "any");
+                return `${ik}${itemReq.has(ik) ? "" : "?"}:${en}`;
+              });
+              if (fields.length) shape = ` [each item: {${fields.join(", ")}}]`;
+            }
+            return `    ${k}${req.has(k) ? "" : "?"}: ${v.type || "any"}${v.description ? " - " + v.description : ""}${shape}`;
+          })
           .join("\n");
         // Append our tested usage notes for the error-prone commands.
         const note = ZS.TOOL_NOTES[bareToolName(t.name)];
@@ -464,12 +496,28 @@
     // write the JSON form without it - default to "Edit" so the call never
     // soft-fails with "datamodel_type is required".
     if (bareName === "execute_luau" && !args.datamodel_type) args.datamodel_type = "Edit";
+    // The player-input tools only run against the Client datamodel (play mode) and
+    // "Client" is the sole allowed value, so default it when the model omits it -
+    // it can only be right. (It still needs the game RUNNING; that's documented.)
+    if ((bareName === "user_keyboard_input" || bareName === "user_mouse_input") && !args.datamodel_type)
+      args.datamodel_type = "Client";
     const timeout = name === "execute_luau" ? 20000 : 120000;
     // Hard watchdog: even if the background worker never answers, the loop
     // gets a definitive result and continues.
     const hardCap = new Promise((res) =>
       setTimeout(() => res({ ok: false, kind: "timeout", error: "no response from the extension worker" }), timeout + 30000));
-    const r = await Promise.race([bg({ type: "call_tool", name, arguments: args, timeout }), hardCap]);
+    // Stop watcher: a blocking tool (e.g. wait_job_finished) would otherwise keep
+    // the loop awaiting the bridge for up to minutes, leaving the input locked and
+    // the Stop button stuck. When the user halts (A.stop), abandon the wait within
+    // ~150ms so the loop breaks and its finally unlocks everything. The in-flight
+    // bridge call may still finish in the background; its result is just ignored.
+    let stopTimer;
+    const stopWatch = new Promise((res) => {
+      stopTimer = setInterval(() => { if (A.stop) res({ ok: false, kind: "stopped" }); }, 150);
+    });
+    const r = await Promise.race([bg({ type: "call_tool", name, arguments: args, timeout }), hardCap, stopWatch]);
+    clearInterval(stopTimer);
+    if (r && r.kind === "stopped") return "(stopped by user)";
     if (!r) return ZS.FEEDBACK.bridgeOffline;
     // The MCP server answers SUCCESSFULLY (ok:true) when no Studio is attached
     // (Studio closed / no place / MCP option disabled) - with an explanatory
@@ -559,6 +607,9 @@
     if (A.running) return;
     A.running = true;
     A.stop = false;
+    A.stopping = false; // clean slate: never inherit a stale "Stopping…" from a
+                        // Stop click that landed before this loop actually started
+    A.loopKey = null; // pinned by syncSessionState once this chat has an id + content
     let truncCount = 0;
     const MAX_TRUNC = 6;
     // Re-send the command list after this many successful tool calls. Kept high
@@ -649,7 +700,15 @@
           const feedback = await runTool(call);
           A.toolRunning = false;
           diag("tool.done", { name: call.tool, ok: !feedback.startsWith("ERROR"), out: feedback.slice(0, 50) });
-          if (A.stop) break;
+          if (A.stop) {
+            // User halted mid-tool: settle the spinning chip so it doesn't look
+            // stuck loading forever, and MARK the turn so the sweep classifier
+            // never repaints it ✓ done once generation ends (the real cause of a
+            // stopped call still going green a moment later).
+            if (res.item) res.item.dataset.zStopped = "1";
+            decorate.toolBox(res.item, call.tool, "err", "stopped", true, "", category);
+            break;
+          }
           const isErr = feedback.startsWith("ERROR");
           decorate.toolBox(res.item, call.tool, isErr ? "err" : "done", outSummary(feedback),
             true, feedback.replace(/^Output of '[^']*':\n?/, ""), category);
@@ -677,19 +736,33 @@
     } finally {
       A.running = false;
       A.stop = false;
+      A.stopping = false;
       A.toolRunning = false;
+      A.loopKey = null;
       ui.showStop(false);
       P.setInputLock(false); // always unlock, even on error or stop
       diag("loop.end");
     }
   }
 
+  // Mark the current assistant turn as user-halted so the sweep classifier shows
+  // its command chip as "stopped" instead of repainting it ✓ done when
+  // generation ends. Cleared on a deliberate resume (native Continue).
+  function markStoppedTurn() {
+    const it = P.lastAssistant();
+    if (it) it.dataset.zStopped = "1";
+  }
+
   function stopLoop() {
+    if (A.stopping) return; // already winding down - ignore double-clicks
     diag("stopLoop");
     A.stop = true;
+    A.stopping = true;
     A.userStopped = true; // suppress auto-resume until the next user message
+    markStoppedTurn();
+    ui.markStopping();    // instant feedback: button → "⏳ Stopping…", disabled
     P.stopGeneration();
-    ui.toast("Loop stopped.");
+    ui.toast("Stopping…");
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -705,19 +778,25 @@
       return;
     }
     A.userStopped = false;
+    A.stop = false;               // clear any halt left by a prior aborted bootstrap
     A.starting = true;
+    const myGen = ++A.startGen;   // identity of THIS bootstrap
+    A.startingKey = null;          // unknown until the conversation gets an id
+    const alive = () => A.startGen === myGen; // false once superseded/aborted
     A.toolCallsSinceReminder = 0; // fresh reminder cadence for the new session
     ui.setStarting(true);
-    ui.updateStartGate(); // reveal the composer + send the panel back to the corner
+    ui.updateStartGate(); // refresh the bar into its "starting" state
     P.setInputLock(true); // block user input during bootstrap
     try {
       await ensureTools();
+      if (!alive()) return;
       if (!A.toolList.length) {
         ui.banner("warn", "Bridge or Studio offline",
           "Could not fetch Roblox tools. Start the ZeroScript bridge and make sure Roblox Studio is open, then try again.");
         return;
       }
       const modeState = await P.ensureComposerReady("startup");
+      if (!alive()) return;
       if (!modeState.ready) {
         ui.banner("warn", `${P.displayName} mode not ready`,
           `Could not switch ${P.displayName} to the required mode. Start a new chat or reload the page, then try again.`);
@@ -725,8 +804,15 @@
       }
       const prompt = ZS.buildSystemPrompt(A.toolList, { siteName: P.displayName, customPrompt: ui.getCustomPrompt() });
       const base = await submitAndGetBase(prompt);
+      if (!alive()) return;
+      // (syncSessionState pins A.startingKey to the conversation id once the chat
+      // has content, and aborts this bootstrap if the user opens a new empty chat.)
       decorate.sweep(); // show the animated "Starting Up" chip immediately
       const startRes = await waitForResponse(base);
+      if (!alive()) return;
+      // The user halted the bootstrap (our Stop or the site's native stop). Do
+      // NOT declare the session ready - abort quietly so "Start" stays available.
+      if (A.stop || startRes.kind === "stopped") { diag("start.aborted", { kind: startRes.kind }); return; }
 
       // If the model calls list_commands as instructed, run it and wait for the "ready" reply.
       const firstName = startRes.calls && startRes.calls[0] && startRes.calls[0].tool;
@@ -736,19 +822,26 @@
         const toolFeedback = await runTool(startRes.calls[0]);
         decorate.toolBox(startRes.item, "Loading commands", "done", `${A.toolList.length} commands`, true);
         const base2 = await submitAndGetBase(toolFeedback);
-        await waitForResponse(base2); // wait for "I'm ready" reply
+        const readyRes = await waitForResponse(base2); // wait for "I'm ready" reply
+        if (!alive()) return;
+        if (A.stop || readyRes.kind === "stopped") { diag("start.aborted", { kind: readyRes.kind }); return; }
       }
       A.started = true;
       rememberSession(P.conversationKey()); // survives virtualization AND reloads
       ui.setStarted(true);
       ui.toast(`Agent ready. Ask ${P.displayName} to build something in Roblox.`);
     } catch (e) {
-      ui.banner("warn", "Startup failed", String((e && e.message) || e));
+      if (alive()) ui.banner("warn", "Startup failed", String((e && e.message) || e));
     } finally {
-      A.starting = false;
-      ui.setStarting(false);
-      P.setInputLock(false); // always unlock after bootstrap
-      decorate.sweep(); // flip the chip from animated → settled
+      // Only tear down our OWN starting state. If we were superseded (the user
+      // opened another chat), the newer flow / syncSessionState owns it now.
+      if (alive()) {
+        A.starting = false;
+        A.startingKey = null;
+        ui.setStarting(false);
+        P.setInputLock(false); // always unlock after bootstrap
+        decorate.sweep();
+      }
     }
   }
 
@@ -812,6 +905,7 @@
     delete item.dataset.zs;
     delete item.dataset.zsig;
     delete item.dataset.zphase;
+    delete item.dataset.zStopped;
     delete item.__zsChip;
   }
 
@@ -955,8 +1049,13 @@
 
       // 3. Assistant command turns → live loading while streaming, ✓ when done.
       if (P.isAssistantItem(item) && ZSParse.hasCommandShape(txt)) {
-        const live = item === P.lastAssistant() && (P.isGenerating() || A.running);
-        const phase = live ? "run" : "done";
+        // A turn the user manually halted (Stop / native stop) stays "stopped" -
+        // never let this sweep repaint it ✓ done just because generation ended.
+        // (The marker is set where we halt; cleared on a deliberate resume.)
+        const stopped = item.dataset.zStopped === "1";
+        const live = !stopped && item === P.lastAssistant() && (P.isGenerating() || A.running);
+        const phase = stopped ? "err" : (live ? "run" : "done");
+        const detail = stopped ? "stopped" : "";
         // A command block that is VISIBLE right now (its hide classes live on
         // child nodes that sites like Gemini re-create on every update, and the
         // block may render only AFTER the chip was first placed mid-stream).
@@ -964,7 +1063,7 @@
           (e) => !e.classList.contains("zs-tool-hide") && !e.closest(".zs-tool-hide") &&
                  !e.closest(".zs-chip") && ZSParse.hasCommandShape(e.textContent || ""));
         if (item.dataset.zphase !== phase || chipGone || rawVisible) {
-          this.toolBox(item, ZSParse.toolNameFromText(txt), phase, "", false);
+          this.toolBox(item, ZSParse.toolNameFromText(txt), phase, detail, false);
         }
         return;
       }
@@ -990,103 +1089,79 @@
   //  UI  (control panel, onboarding, stop button, banners, toast, input cover)
   // ════════════════════════════════════════════════════════════════════════
   const ui = (() => {
-    let root, dot, stopBtn, cover, coverRaf, gateCover, startBtn, hintEl, ctaEl, activeEl, activeTxtEl, stateEl;
-    let panel, gateRaf, bridgeOk = false, studioDown = false;
+    let root, bar, dot, brandEl, stateEl, actionBtn, stopBtn, moreBtn, menuEl;
+    let cover, coverRaf, barRaf;
+    let bridgeOk = false, studioDown = false, placeDown = false, appDown = false;
     let wasConnected = false, bridgeBannerEl = null;
 
     function build() {
       root = document.createElement("div");
       root.id = "zs-root";
+      // One consolidated status bar, anchored just above the site's composer
+      // (positioned every frame by placeBar). It carries everything: live status,
+      // the primary action (Start / New session / New chat / Stop) and a "more"
+      // menu (other AI sites, custom prompt, support, Discord). No floating panel,
+      // no overlay on the input - the composer stays fully usable for plain chat.
       root.innerHTML = `
-        <div id="zs-panel">
-          <div class="zs-row">
-            <span id="zs-dot" class="off"></span>
-            <span id="zs-title">ZeroScript <span class="zs-free">Free</span></span>
-            <button id="zs-sites" title="Other AI sites you can use ZeroScript on">🌐</button>
-            <button id="zs-gear" title="Custom prompt settings">⚙</button>
-            <button id="zs-kofi" title="Support ZeroScript ♥">♥</button>
-            <a id="zs-discord" href="https://discord.gg/D5G2HAzX8z" target="_blank" rel="noopener" title="Need help? Join our Discord"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg></a>
-          </div>
-          <div id="zs-sites-menu" hidden></div>
-          <div id="zs-tip-menu" hidden></div>
-          <div id="zs-settings" hidden>
-            <div class="zs-set-h">Your custom prompt</div>
-            <div class="zs-set-sub">Extra instructions added <b>below</b> the system prompt on every new session. The built-in prompt can't be edited.</div>
-            <textarea id="zs-set-text" rows="6" placeholder="e.g. Always comment your Luau code. Prefer small modular scripts. Ask before deleting anything."></textarea>
-            <div class="zs-set-row">
-              <button id="zs-set-save">Save</button>
-              <span id="zs-set-status"></span>
-            </div>
-          </div>
-          <div class="zs-row zs-sub"><span id="zs-state">Bridge: …</span></div>
-          ${P.unstableWarning ? `<div id="zs-unstable" title="">⚠ ${P.displayName} is unstable - may stop doing what it should</div>` : ""}
-          <div id="zs-cta">
-            <button id="zs-start">▶  Start session</button>
-            <div id="zs-hint">Click <b>Start</b>, then type what you want to build - ${P.displayName} will drive Roblox Studio for you.</div>
-          </div>
-          <div id="zs-active" hidden>
-            <span class="zs-active-txt"><span class="zs-live-dot"></span>Session active - just type your request</span>
-            <button id="zs-new" title="Open a fresh conversation and start a new agent session there">⟳ New session</button>
-          </div>
+        <div id="zs-bar">
+          <span id="zs-dot" class="off" title=""></span>
+          <span id="zs-brand">ZeroScript <span class="zs-free">Free</span></span>
+          ${P.unstableWarning ? `<button id="zs-unstable">⚠ unstable</button>` : ""}
+          <span id="zs-state"></span>
+          <button id="zs-action"></button>
           <button id="zs-stop" hidden>■ Stop</button>
+          <a id="zs-discord" href="https://discord.gg/D5G2HAzX8z" target="_blank" rel="noopener" title="Need help? Join our Discord"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg></a>
+          <button id="zs-more" aria-label="More options" title="More options">⋯</button>
         </div>
+        <div id="zs-menu" hidden></div>
       `;
       document.documentElement.appendChild(root);
-      panel = root.querySelector("#zs-panel");
+      bar = root.querySelector("#zs-bar");
       dot = root.querySelector("#zs-dot");
-      stopBtn = root.querySelector("#zs-stop");
-      startBtn = root.querySelector("#zs-start");
-      hintEl = root.querySelector("#zs-hint");
-      ctaEl = root.querySelector("#zs-cta");
-      activeEl = root.querySelector("#zs-active");
-      activeTxtEl = root.querySelector(".zs-active-txt");
+      brandEl = root.querySelector("#zs-brand");
       stateEl = root.querySelector("#zs-state");
-      // Permanent, non-intrusive instability notice (full text on hover).
-      const unstable = root.querySelector("#zs-unstable");
-      if (unstable) unstable.title = P.unstableWarning;
-      startBtn.addEventListener("click", () => startSession());
-      root.querySelector("#zs-new").addEventListener("click", newSessionClick);
-      buildTipMenu();
-      buildSitesMenu();
-      buildSettings();
-      stopBtn.addEventListener("click", stopLoop);
-      // Position (saved corner), theme auto-detection, and drag-to-move.
-      loadCorner();
-      installDrag();
-      applyTheme();
-      setInterval(applyTheme, 2000); // follow the host page toggling its theme
-    }
+      actionBtn = root.querySelector("#zs-action");
+      stopBtn = root.querySelector("#zs-stop");
+      moreBtn = root.querySelector("#zs-more");
+      menuEl = root.querySelector("#zs-menu");
+      bar.classList.add(`zs-prov-${P.id}`); // lets CSS tune per-site (e.g. font)
 
-    // "Other AI sites" menu: lists every chat site ZeroScript runs on, with a
-    // link to open each in a new tab. The current site is marked, not linked.
-    function buildSitesMenu() {
-      const menu = root.querySelector("#zs-sites-menu");
-      const btn = root.querySelector("#zs-sites");
-      const here = (P.displayName || "").toLowerCase();
-      let html = `<div class="zs-sites-h">Use ZeroScript on these AI sites</div>`;
-      for (const s of AI_SITES) {
-        const current = s.name.toLowerCase() === here;
-        html += current
-          ? `<div class="zs-site-opt zs-site-here"><span>${s.emoji} ${s.name}</span><span class="zs-site-badge">you're here</span></div>`
-          : `<button class="zs-site-opt" data-u="${s.url}">${s.emoji} ${s.name}<span class="zs-site-go">Open ↗</span></button>`;
+      actionBtn.addEventListener("click", onActionClick);
+      stopBtn.addEventListener("click", stopLoop);
+      const unstableBtn = root.querySelector("#zs-unstable");
+      if (unstableBtn) {
+        // Set the native tooltip via PROPERTY, not the HTML template: the warning
+        // text may contain double quotes (e.g. GLM's "No response…"), which would
+        // terminate a title="..." attribute early and truncate the tooltip.
+        unstableBtn.title = P.unstableWarning;
+        unstableBtn.addEventListener("click", (e) => { e.stopPropagation(); toast(P.unstableWarning); });
       }
-      menu.innerHTML = html;
-      menu.querySelectorAll("button.zs-site-opt").forEach((b) =>
-        b.addEventListener("click", () => {
-          try { window.open(b.dataset.u, "_blank", "noopener"); } catch {}
-          menu.hidden = true;
-        }));
-      btn.addEventListener("click", (e) => {
+      buildMenu();
+      moreBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        menu.hidden = !menu.hidden;
+        menuEl.hidden = !menuEl.hidden;
+        if (!menuEl.hidden) syncMenuPrompt();
       });
       document.addEventListener("click", (e) => {
-        if (menu.hidden) return;
-        if (!menu.contains(e.target) && e.target !== btn) menu.hidden = true;
+        if (menuEl.hidden) return;
+        if (!menuEl.contains(e.target) && e.target !== moreBtn) menuEl.hidden = true;
       }, true);
+
+      applyTheme();
+      setInterval(applyTheme, 2000); // follow the host page toggling its theme
+      renderBar();
+      placeBar(); // start the per-frame anchoring loop
     }
 
-    // ── Custom-prompt settings (gear) ───────────────────────────────────────
+    // The primary button does different things depending on the current state
+    // (set by renderBar via actionBtn.dataset.kind).
+    function onActionClick() {
+      const kind = actionBtn.dataset.kind;
+      if (kind === "start") startSession();
+      else if (kind === "new-session" || kind === "new-chat") newSessionClick();
+    }
+
+    // ── Custom prompt (persisted) ───────────────────────────────────────────
     // The user's extra instructions, persisted in chrome.storage.local and
     // appended UNDER the system prompt at session start. Cached here so
     // startSession can read it synchronously.
@@ -1095,62 +1170,63 @@
       chrome.storage.local.get("zsCustomPrompt", (r) => {
         if (r && typeof r.zsCustomPrompt === "string") {
           customPrompt = r.zsCustomPrompt;
-          const ta = root && root.querySelector("#zs-set-text");
-          if (ta && document.activeElement !== ta) ta.value = customPrompt;
+          syncMenuPrompt();
         }
       });
     } catch {}
+    function getCustomPrompt() { return customPrompt; }
+    // Reflect the saved value back into the menu textarea (unless being edited).
+    function syncMenuPrompt() {
+      const ta = root && root.querySelector("#zs-set-text");
+      if (ta && document.activeElement !== ta) ta.value = customPrompt;
+    }
 
-    function buildSettings() {
-      const panelEl = root.querySelector("#zs-settings");
-      const gear = root.querySelector("#zs-gear");
-      const ta = root.querySelector("#zs-set-text");
-      const saveBtn = root.querySelector("#zs-set-save");
-      const status = root.querySelector("#zs-set-status");
+    // ── The "more" menu (⋯) ─────────────────────────────────────────────────
+    // One popover holding every secondary control: other AI sites, the custom
+    // prompt, and support (Ko-fi + Robux). Opens above the bar.
+    function buildMenu() {
+      const here = (P.displayName || "").toLowerCase();
+      let sites = "";
+      for (const s of AI_SITES) {
+        const current = s.name.toLowerCase() === here;
+        sites += current
+          ? `<div class="zs-site-opt zs-site-here"><span>${s.emoji} ${s.name}</span><span class="zs-site-badge">you're here</span></div>`
+          : `<button class="zs-site-opt" data-u="${s.url}">${s.emoji} ${s.name}<span class="zs-site-go">Open ↗</span></button>`;
+      }
+      let passes = "";
+      for (const p of ROBUX_PASSES) {
+        passes += `<button class="zs-tip-opt zs-tip-rbx" data-u="${passUrl(p.id)}">⬡ ${p.robux} Robux</button>`;
+      }
+      menuEl.innerHTML =
+        `<div class="zs-menu-sec">
+           <div class="zs-menu-h">Use ZeroScript on other AI sites</div>
+           ${sites}
+         </div>
+         <div class="zs-menu-sec">
+           <div class="zs-menu-h">Your custom prompt</div>
+           <div class="zs-menu-note">Added below the system prompt on every new session. The built-in prompt can't be edited.</div>
+           <textarea id="zs-set-text" rows="4" placeholder="e.g. Always comment your Luau code. Prefer small modular scripts."></textarea>
+           <div class="zs-set-row"><button id="zs-set-save">Save</button><span id="zs-set-status"></span></div>
+         </div>
+         <div class="zs-menu-sec">
+           <div class="zs-menu-h">Support ZeroScript ♥</div>
+           <button class="zs-tip-opt zs-tip-kofi" data-u="${KOFI_URL}">☕ Ko-fi, any amount</button>
+           <div class="zs-tip-sep">or tip in Robux</div>
+           ${passes}
+         </div>`;
+      const open = (url) => { try { window.open(url, "_blank", "noopener"); } catch {} menuEl.hidden = true; };
+      menuEl.querySelectorAll("button.zs-site-opt, .zs-tip-opt").forEach((b) =>
+        b.addEventListener("click", () => open(b.dataset.u)));
+      const ta = menuEl.querySelector("#zs-set-text");
+      const saveBtn = menuEl.querySelector("#zs-set-save");
+      const status = menuEl.querySelector("#zs-set-status");
       ta.value = customPrompt;
-      gear.addEventListener("click", (e) => {
-        e.stopPropagation();
-        panelEl.hidden = !panelEl.hidden;
-        if (!panelEl.hidden) { ta.value = customPrompt; ta.focus(); }
-      });
       saveBtn.addEventListener("click", () => {
         customPrompt = ta.value;
         try { chrome.storage.local.set({ zsCustomPrompt: customPrompt }); } catch {}
         status.textContent = "Saved ✓";
         setTimeout(() => { status.textContent = ""; }, 1600);
       });
-      // Close when clicking outside the panel/gear.
-      document.addEventListener("click", (e) => {
-        if (panelEl.hidden) return;
-        if (!panelEl.contains(e.target) && e.target !== gear) panelEl.hidden = true;
-      }, true);
-    }
-
-    function getCustomPrompt() { return customPrompt; }
-
-    // Support menu: Ko-fi + Roblox Game Pass "tips" (native currency).
-    function buildTipMenu() {
-      const menu = root.querySelector("#zs-tip-menu");
-      const kofiBtn = root.querySelector("#zs-kofi");
-      const open = (url) => { try { window.open(url, "_blank", "noopener"); } catch {} menu.hidden = true; };
-      let html = `<div class="zs-tip-h">Support ZeroScript ♥</div>`;
-      html += `<button class="zs-tip-opt zs-tip-kofi" data-u="${KOFI_URL}">☕ Ko-fi - any amount</button>`;
-      html += `<div class="zs-tip-sep">or tip in Robux</div>`;
-      for (const p of ROBUX_PASSES) {
-        html += `<button class="zs-tip-opt zs-tip-rbx" data-u="${passUrl(p.id)}">⬡ ${p.robux} Robux</button>`;
-      }
-      menu.innerHTML = html;
-      menu.querySelectorAll(".zs-tip-opt").forEach((b) =>
-        b.addEventListener("click", () => open(b.dataset.u)));
-      kofiBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        menu.hidden = !menu.hidden;
-      });
-      // Close when clicking anywhere else.
-      document.addEventListener("click", (e) => {
-        if (menu.hidden) return;
-        if (!menu.contains(e.target) && e.target !== kofiBtn) menu.hidden = true;
-      }, true);
     }
 
     // ── First-time onboarding card (bridge missing) ─────────────────────────
@@ -1176,7 +1252,7 @@
           `<input type="text" id="zs-setup-link" readonly value="${GITHUB_URL}">` +
           `<button id="zs-setup-copy">Copy</button>` +
         `</div>` +
-        `<div id="zs-setup-steps">1. Download the Bridge &amp; start.bat<br>2. Run start.bat<br>3. Come back here and click <b>Start session</b></div>` +
+        `<div id="zs-setup-steps">1. Download the Bridge &amp; start.bat<br>2. Run start.bat<br>3. Come back here and click <b>Start Roblox agent</b></div>` +
         `<button id="zs-setup-dismiss">Got it ✓</button>`;
       document.documentElement.appendChild(setupCard);
 
@@ -1197,12 +1273,9 @@
       });
     }
 
-    function placeSetup() {
-      if (!setupCard || setupCard.hidden || !panel) return;
-      const r = panel.getBoundingClientRect();
-      setupCard.style.top = (r.bottom + 10) + "px";
-      setupRaf = requestAnimationFrame(placeSetup);
-    }
+    // The onboarding card is pinned to the top-right corner (via CSS), out of the
+    // way of the composer; nothing to reposition per frame.
+    function placeSetup() {}
 
     function showSetup() {
       if (!setupCard) buildSetup();
@@ -1223,35 +1296,86 @@
       showSetup();
     }
 
-    // Decide what the corner panel shows:
-    //  • a FRESH blank chat, not started → onboarding CTA (big "Start session").
-    //  • anything else → the compact "active" row with the "New session" button.
-    function syncPanel() {
-      if (!ctaEl) return;
-      const showCta = A.starting || (P.isFreshChat() && !A.started);
-      ctaEl.hidden = !showCta;
-      activeEl.hidden = showCta;
-      if (!showCta && activeTxtEl) {
-        activeTxtEl.innerHTML = A.started
-          ? `<span class="zs-live-dot"></span>Session active. Just type your request in ${P.displayName}.`
-          : `<span class="zs-live-dot idle"></span>No active agent in this chat. Type to continue it, or click “New session” for a fresh agent.`;
+    // The single source of truth for the bar's content. Decides the dot tone,
+    // the state line and the primary action from the live state:
+    //  • starting        → spinner, "Starting the Roblox agent…"
+    //  • session active   → live dot, "Agent active · N tools", action = New session
+    //  • fresh blank chat → "Standby…" (or a bridge/Studio warning), action = Start
+    //  • existing chat    → "No agent in this chat", action = New chat (informs only)
+    function renderBar() {
+      if (!bar) return;
+      // indicator = an optional leading dot/spinner; msg = the wrappable text.
+      let toneClass = "standby", indicator = "", msg = "", label = "", kind = "", disabled = false, warn = false;
+      // Show "Starting…" for the whole bootstrap. If the user actually leaves for
+      // a new (empty) chat, syncSessionState clears A.starting, so this naturally
+      // falls back to that chat's own state - no fragile per-key check here (fresh
+      // chats share a key, and the conversation id only appears mid-bootstrap).
+      if (A.starting) {
+        toneClass = "starting";
+        indicator = `<span class="zs-spin"></span>`;
+        msg = `Starting the Roblox agent…`;
+        label = "Starting…"; kind = "starting"; disabled = true;
+      } else if (A.started) {
+        toneClass = "active";
+        const tools = (A.bridge && A.bridge.tools) || A.toolList.length || 0;
+        // No inline dot here: the leading status dot already shows green, two dots
+        // side by side looked cluttered. The green "Agent active" text carries it.
+        msg = `<b>Agent active</b>${tools ? ` · ${tools} tools` : ""}`;
+        label = "+ New chat"; kind = "new-session";
+      } else if (P.isFreshChat() || P.chatIsEmpty()) {
+        // Treat ANY empty chat (no turns yet) as the standby/start case - not just
+        // the strict fresh-chat match. isFreshChat() also requires an exact root
+        // path AND the editor already mounted; on a cold load (e.g. arriving from a
+        // search-engine link) the SPA can show pathname/editor before they settle,
+        // which used to drop into the discouraging "No agent here" branch on a page
+        // that is actually empty and startable. "No agent here" is only correct for
+        // an EXISTING conversation (one that has turns) we did not start.
+        if (bridgeOk) {
+          toneClass = "standby";
+          msg = `Standby. Start the agent, or just chat.`;
+        } else {
+          toneClass = "warn"; warn = true;
+          msg = !A.bridge.connected
+            ? `Run the <b>ZeroScript bridge</b> on your PC.`
+            : placeDown
+              ? `Open a <b>place</b> in Roblox Studio.`
+              : appDown
+                ? `Open <b>Roblox Studio</b> &amp; enable its MCP server.`
+                : studioDown
+                  ? `Open <b>Roblox Studio</b> &amp; enable its MCP server.`
+                  : `Open <b>Roblox Studio</b> for the tools.`;
+        }
+        label = "▶ Start Roblox agent"; kind = "start"; disabled = !bridgeOk;
+      } else {
+        toneClass = "noagent";
+        msg = `No agent here. Open a new chat to start one.`;
+        label = "+ New chat"; kind = "new-chat";
       }
+      // Only touch the DOM when something actually changed. renderBar runs on
+      // every sweep; rewriting stateEl.innerHTML each time recreated the spinner
+      // <span> and RESTARTED its CSS animation, so "Starting…" appeared to stutter.
+      const busy = !stopBtn.hidden;
+      const sig = [toneClass, indicator, msg, label, kind, disabled, warn, busy].join("|");
+      if (sig === lastBarSig) return;
+      lastBarSig = sig;
+      // Set the tone WITHOUT clobbering other classes (e.g. zs-bar-inline, which
+      // placeBar adds for the in-flow mount - overwriting className broke the
+      // layout, making the bar fall back to fixed positioning and overlap).
+      bar.classList.remove("tone-standby", "tone-active", "tone-warn", "tone-noagent", "tone-starting");
+      bar.classList.add(`tone-${toneClass}`);
+      stateEl.innerHTML = indicator + `<span class="zs-state-txt">${msg}</span>`;
+      stateEl.classList.toggle("zs-state-warn", warn);
+      actionBtn.textContent = label;
+      actionBtn.dataset.kind = kind;
+      actionBtn.disabled = disabled;
+      // The Stop button replaces the action button while the agent is busy.
+      actionBtn.style.display = busy ? "none" : "";
     }
+    let lastBarSig = "";
 
-    // Kept for callers that flip A.started; the actual decision lives in syncPanel.
-    function setStarted() {
-      syncPanel();
-      updateStartGate(); // reflect the new state on the input gate immediately
-    }
-
-    function setStarting(on) {
-      if (!startBtn) return;
-      startBtn.disabled = on;
-      startBtn.innerHTML = on
-        ? `<span class="zs-spin"></span><span>Starting session…</span>`
-        : "▶  Start session";
-      if (on && hintEl) hintEl.textContent = "Connecting the agent to Roblox Studio… a few seconds.";
-    }
+    // Thin wrappers kept for the core's call sites; the decision lives in renderBar.
+    function setStarted() { renderBar(); }
+    function setStarting() { renderBar(); }
 
     function setStatus(s) {
       A.bridge = s;
@@ -1259,27 +1383,44 @@
       const servers = s.servers || [];
       const up = servers.filter((x) => x.alive).length;
       const mcpOk = s.connected && (s.mcpAlive || up > 0 || s.tools > 0);
-      // studio === false means the MCP server answered but NO Studio is attached
-      // (Studio closed, no place open, or its MCP option disabled). The MCP
-      // process stays alive in that state, so mcpOk alone reads "Connected".
+      // studio === false means the MCP server answered but the Studio is not USABLE
+      // (no place loaded). studioApp tells the two sub-cases apart:
+      //   studioApp === false → no Studio connected at all (app closed OR its MCP
+      //                         server option is disabled - indistinguishable).
+      //   studioApp === true  → Studio open but no place loaded (home screen / place
+      //                         closed mid-session). THIS is the case that used to
+      //                         wrongly read "Connected".
       // null/undefined = unknown (old bridge / probe busy) → don't degrade.
       const studioOff = mcpOk && s.studio === false;
+      const noApp = studioOff && s.studioApp === false;
+      const noPlace = studioOff && s.studioApp === true;
       const ok = mcpOk && !studioOff;
       dot.className = s.connected ? (ok ? "on" : "warn") : "off";
       let txt;
-      if (!s.connected) txt = "Bridge offline - run the ZeroScript bridge";
-      else if (!mcpOk) txt = "Bridge OK - open Roblox Studio";
-      else if (studioOff) txt = "Studio not connected - enable the MCP server in Roblox Studio";
+      if (!s.connected) txt = "Bridge offline, run the ZeroScript bridge";
+      else if (!mcpOk) txt = "Bridge OK, open Roblox Studio";
+      else if (noPlace) txt = "Roblox Studio is open but no place is loaded - open a place";
+      else if (noApp) txt = "Roblox Studio not connected - open it and enable its MCP server";
+      else if (studioOff) txt = "Studio not connected, enable the MCP server in Roblox Studio";
       else txt = `Connected · ${s.tools} Roblox tools ready`;
-      stateEl.textContent = txt;
+      dot.title = txt; // full bridge detail on hover over the status dot
       bridgeOk = ok;
       studioDown = studioOff;
+      placeDown = noPlace;
+      appDown = noApp;
       // Bridge-drop alert: a clear, persistent red banner the moment a
       // previously-connected bridge goes offline. Clears on reconnect.
       if (wasConnected && !s.connected) bridgeAlert(true);
       if (s.connected) bridgeAlert(false);
       wasConnected = s.connected;
-      refreshStart();
+      // Once the bridge has connected at least once, onboarding is done: never
+      // resurface the "download the bridge" setup card again (otherwise, if the
+      // bridge later drops, it would reappear on top of the bridge-lost banner).
+      if (s.connected && !setupSeen) {
+        setupSeen = true;
+        try { chrome.storage.local.set({ zsSetupSeen: true }); } catch {}
+      }
+      renderBar();
       refreshSetup(s.connected);
     }
 
@@ -1292,49 +1433,66 @@
       if (bridgeBannerEl) return; // already shown
       const b = document.createElement("div");
       b.className = "zs-banner limit";
+      // The setup tutorial lives INSIDE this banner (not as a separate card) so it
+      // can never overlap the alert - the previous standalone onboarding card did.
+      const videoLink = VIDEO_URL
+        ? `<a class="zs-banner-video" href="${VIDEO_URL}" target="_blank" rel="noopener">▶ Watch setup tutorial</a>`
+        : "";
       b.innerHTML = `<div class="zs-banner-t">⚠ Lost connection to ZeroScript</div>
-        <div class="zs-banner-m">The ZeroScript bridge stopped on your PC. Restart it (and keep Roblox Studio open): the agent will reconnect automatically as soon as it is detected again.</div>
-        <div class="zs-banner-acts"><button class="zs-banner-x">Close</button></div>`;
+        <div class="zs-banner-m">The ZeroScript bridge stopped on your PC. Restart it (run start.bat and keep Roblox Studio open): the agent will reconnect automatically as soon as it is detected again.</div>
+        <div class="zs-banner-acts">${videoLink}<button class="zs-banner-x">Close</button></div>`;
       b.querySelector(".zs-banner-x").addEventListener("click", () => { b.remove(); if (bridgeBannerEl === b) bridgeBannerEl = null; });
       root.appendChild(b);
       bridgeBannerEl = b;
     }
 
-    // Gate the Start button on a usable bridge (the CTA only ever shows on a
-    // fresh blank chat, see syncPanel). The hint explains whatever is missing.
-    function refreshStart() {
-      if (!startBtn || A.starting) return;
-      const ready = bridgeOk;
-      startBtn.disabled = !ready;
-      if (!hintEl) return;
-      hintEl.innerHTML = ready
-        ? `Click <b>Start</b>, then type what you want to build - ${P.displayName} will drive Roblox Studio for you.`
-        : (!A.bridge.connected
-            ? `⚠ Start the <b>ZeroScript bridge</b> on your PC first.`
-            : studioDown
-              ? `⚠ Open <b>Roblox Studio</b> with a place and <b>enable the MCP server</b> (Assistant AI → … → Manage MCP Servers → Enable Studio as MCP Server).`
-              : `⚠ Open <b>Roblox Studio</b> so the tools become available.`);
-      hintEl.classList.toggle("zs-hint-warn", !ready);
+    // Show (v=true) / hide the "■ Stop" button while the agent is busy. The
+    // primary action button swaps out for it (handled in renderBar via busy).
+    // Forced hidden during bootstrap (A.starting) so the bar stays on "Starting…"
+    // (else it flickers Starting → Stop → Starting as generation toggles). The
+    // caller decides the rest, including native-stop de-duplication.
+    function showStop(v) {
+      if (!stopBtn) return;
+      // Stay visible while winding down (A.stopping), so the button doesn't blink
+      // off when the live generation signal toggles as the loop drains.
+      const allow = (v || A.stopping) && !A.starting;
+      const was = stopBtn.hidden;
+      stopBtn.hidden = !allow;
+      // Restore the normal, clickable Stop look whenever we're shown for a fresh
+      // active turn (not a stop-in-progress).
+      if (allow && !A.stopping && stopBtn.dataset.state === "stopping") {
+        stopBtn.disabled = false;
+        stopBtn.textContent = "■ Stop";
+        delete stopBtn.dataset.state;
+      }
+      if (was !== stopBtn.hidden) renderBar(); // reflect the action/stop swap
     }
 
-    function showStop(v) { if (stopBtn) stopBtn.hidden = !v; }
+    // Instant feedback the moment the user clicks Stop: lock the button into a
+    // disabled "⏳ Stopping…" state so they see it registered, even though the
+    // loop takes a beat to actually wind down (finish the in-flight tool/await).
+    function markStopping() {
+      if (!stopBtn) return;
+      stopBtn.hidden = false;
+      stopBtn.disabled = true;
+      stopBtn.dataset.state = "stopping";
+      stopBtn.textContent = "⏳ Stopping…";
+      renderBar();
+    }
 
-    // Briefly draw the user's eye to the Start button when they try to type/send
-    // before a session exists.
+    // A gentle, one-time nudge: the user typed on a fresh chat without starting
+    // the agent. We do NOT block the send (plain chat is fine) - we just point at
+    // the Start button so they discover how to enable Roblox control.
+    let nudged = false;
     function nudgeStart() {
-      toast("Click “▶ Start session” first to enable the agent.");
-      if (!startBtn) return;
-      startBtn.classList.add("zs-flash");
-      setTimeout(() => startBtn.classList.remove("zs-flash"), 1200);
-    }
-
-    // Restore the control panel to its user-chosen corner (default top-right).
-    function ungate() {
-      document.querySelectorAll(".zs-frame-hidden").forEach((e) => e.classList.remove("zs-frame-hidden"));
-      if (root) root.classList.remove("zs-gate-on", "zs-gate-starting", "zs-gate-block");
-      if (gateCover) gateCover.style.display = "none";
-      if (panel) { panel.style.width = panel.style.minHeight = ""; applyCorner(corner); }
-      cancelAnimationFrame(gateRaf);
+      if (A.started || !P.isFreshChat()) return;
+      if (!nudged) {
+        nudged = true;
+        toast("Tip: click “▶ Start Roblox agent” to let the AI control Roblox Studio.");
+      }
+      if (!actionBtn) return;
+      actionBtn.classList.add("zs-flash");
+      setTimeout(() => actionBtn.classList.remove("zs-flash"), 1200);
     }
 
     // ── Theme auto-detection (light / dark) ─────────────────────────────────
@@ -1384,128 +1542,123 @@
       document.documentElement.classList.toggle("zs-light", light);
     }
 
-    // ── Drag-to-move (snap the panel to any of the four corners) ─────────────
-    // corner is one of "tr" | "tl" | "br" | "bl" (top/bottom + left/right).
-    let corner = "tr";
-    // Lifted out of installDrag so ungate()/applyCorner can see it: the sweep
-    // calls updateStartGate()→ungate()→applyCorner() ~every 1.5s, which would
-    // otherwise yank the panel back to its corner mid-drag (the "stops following
-    // the mouse after starting" bug). While dragging we own the position.
-    let dragging = false;
-    const CORNER_MARGIN = "18px";
-    function applyCorner(c) {
-      corner = c;
-      if (!panel || dragging) return;
-      // Explicit `auto` (not "") so we override the base CSS right/top defaults.
-      panel.style.left = c.includes("l") ? CORNER_MARGIN : "auto";
-      panel.style.right = c.includes("r") ? CORNER_MARGIN : "auto";
-      panel.style.top = c.includes("t") ? CORNER_MARGIN : "auto";
-      panel.style.bottom = c.includes("b") ? CORNER_MARGIN : "auto";
-    }
-    function loadCorner() {
-      applyCorner(corner); // immediate default so position is never undefined
-      try {
-        chrome.storage.local.get("zsCorner", (r) => {
-          if (r && /^(tr|tl|br|bl)$/.test(r.zsCorner)) applyCorner(r.zsCorner);
-        });
-      } catch {}
-    }
-    function nearestCorner() {
-      const r = panel.getBoundingClientRect();
-      const right = r.left + r.width / 2 > window.innerWidth / 2;
-      const bottom = r.top + r.height / 2 > window.innerHeight / 2;
-      return (bottom ? "b" : "t") + (right ? "r" : "l");
-    }
-    // Drag with the Pointer Events API + setPointerCapture: the panel keeps
-    // receiving pointermove/up even when the cursor outruns it or leaves the
-    // window, so it follows 1:1 with no "decoupling" glitch. Width/height are
-    // cached at grab time (no per-move layout reads), and overlay.css kills the
-    // panel's backdrop-filter while dragging so each frame is cheap to paint.
-    function installDrag() {
-      let sx = 0, sy = 0, ox = 0, oy = 0, pw = 0, ph = 0;
-      let tx = 0, ty = 0, raf = 0; // latest target + the pending rAF id
-      // Coalesce pointermove into one style write per frame so the panel tracks
-      // the cursor smoothly even when moves fire faster than paint.
-      const paint = () => {
-        raf = 0;
-        if (!dragging) return;
-        panel.style.left = tx + "px"; panel.style.top = ty + "px";
-      };
-      const onDown = (e) => {
-        if (e.button !== 0) return;
-        // Don't start a drag from an interactive control or an open menu.
-        if (e.target.closest("button, input, textarea, a, #zs-settings, #zs-tip-menu, #zs-sites-menu")) return;
-        const r = panel.getBoundingClientRect();
-        dragging = true;
-        sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; pw = r.width; ph = r.height;
-        tx = r.left; ty = r.top;
-        panel.style.right = panel.style.bottom = "auto";
-        panel.style.left = r.left + "px"; panel.style.top = r.top + "px";
-        root.classList.add("zs-dragging");
-        try { panel.setPointerCapture(e.pointerId); } catch {}
-        e.preventDefault();
-      };
-      const onMove = (e) => {
-        if (!dragging) return;
-        let nx = ox + (e.clientX - sx), ny = oy + (e.clientY - sy);
-        tx = Math.max(4, Math.min(nx, window.innerWidth - pw - 4));
-        ty = Math.max(4, Math.min(ny, window.innerHeight - ph - 4));
-        if (!raf) raf = requestAnimationFrame(paint);
-        e.preventDefault();
-      };
-      const onUp = (e) => {
-        if (!dragging) return;
-        dragging = false;
-        if (raf) { cancelAnimationFrame(raf); raf = 0; }
-        panel.style.left = tx + "px"; panel.style.top = ty + "px"; // flush final pos
-        root.classList.remove("zs-dragging");
-        try { panel.releasePointerCapture(e.pointerId); } catch {}
-        const c = nearestCorner();
-        applyCorner(c);                                  // snap to the nearest of the 4 corners
-        try { chrome.storage.local.set({ zsCorner: c }); } catch {}
-      };
-      panel.addEventListener("pointerdown", onDown);
-      panel.addEventListener("pointermove", onMove);
-      panel.addEventListener("pointerup", onUp);
-      panel.addEventListener("pointercancel", onUp);
+    // Where the bar lives INSIDE the site's composer. We insert it as a real,
+    // in-flow DOM node (between the model tabs and the input on DeepSeek), so it
+    // takes the full composer width and never overlaps the site's own controls.
+    // The mount point is derived from each provider's composerFrame()+getEditor(),
+    // or a provider can override it via barMount(). Returns {parent, before}.
+    // The provider decides the exact mount (it knows which element is the input
+    // box and where a child reflows cleanly). If a provider doesn't supply one,
+    // we fall back to the floating bar rather than risk overlapping its layout.
+    function computeBarMount() {
+      if (!P.barMount) return null;
+      const m = P.barMount();
+      return (m && m.parent && m.parent.isConnected) ? m : null;
     }
 
-    // Input gate: on a BLANK, not-yet-started conversation the composer stays
-    // visible in its normal place and the control panel stays in its corner; we
-    // just lay a thin cover OVER the composer that blocks typing/focus and points
-    // the user at the mandatory "Start session" step. (Hiding the whole bar
-    // looked bad on some sites.) The extension still types/sends programmatically
-    // - the cover only intercepts real pointer/focus, not scripted .click().
-    function updateStartGate() {
-      syncPanel();
-      refreshStart();
-      const gateEl = () => (P.gateTarget && P.gateTarget()) || P.composerFrame();
-      const frame = gateEl();
-      const show = !A.started && !A.starting && P.isFreshChat() && !!frame && !!panel;
-      if (!show) { ungate(); return; }
-      root.classList.add("zs-gate-block");
-      if (!gateCover) {
-        gateCover = document.createElement("div");
-        gateCover.id = "zs-gate-cover";
-        gateCover.innerHTML = `<span>▶ Click “Start session” first</span>`;
-        // Swallow clicks/focus on the composer and nudge the Start button.
-        gateCover.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopPropagation(); nudgeStart(); });
-        document.documentElement.appendChild(gateCover);
-      }
-      gateCover.style.display = "flex";
-      const place = () => {
-        if (!root.classList.contains("zs-gate-block")) return;
-        const f = gateEl();
-        if (!f) { gateRaf = requestAnimationFrame(place); return; }
-        const r = f.getBoundingClientRect();
-        gateCover.style.left = r.left + "px";
-        gateCover.style.top = r.top + "px";
-        gateCover.style.width = r.width + "px";
-        gateCover.style.height = Math.max(r.height, 36) + "px";
-        gateRaf = requestAnimationFrame(place);
-      };
-      place();
+    // Floating fallback geometry (used only when no inline mount is available).
+    const BAR_MAX_W = 560, BAR_GAP = 8;
+
+    // Anchored mode bookkeeping: the composer element whose top padding we are
+    // borrowing to seat the bar (see the anchored branch below). Cleared when we
+    // leave anchored mode so the site's composer returns to its normal layout.
+    let anchorPadEl = null;
+    function clearAnchorPad() {
+      if (anchorPadEl) { try { anchorPadEl.style.paddingTop = ""; } catch {} anchorPadEl = null; }
     }
+
+    function placeBar() {
+      barRaf = requestAnimationFrame(placeBar);
+      if (!bar) return;
+
+      // Preferred: in-flow mount inside the composer (no overlap, full width).
+      const mount = computeBarMount();
+      if (mount) {
+        clearAnchorPad();
+        if (bar.parentElement !== mount.parent || bar.nextElementSibling !== mount.before) {
+          try { mount.parent.insertBefore(bar, mount.before || null); } catch {}
+        }
+        if (!bar.classList.contains("zs-bar-inline")) {
+          bar.classList.add("zs-bar-inline");
+          bar.style.cssText = ""; // drop any leftover float positioning
+        }
+        // Transparent (blends in) when mounted INSIDE the input box; surface card
+        // when mounted ABOVE it. The provider's barMount() signals which via .inside.
+        bar.classList.toggle("zs-bar-inside", !!mount.inside);
+        bar.style.display = "flex";
+        if (menuEl && !menuEl.hidden) {
+          const br = bar.getBoundingClientRect();
+          menuEl.style.right = Math.round(window.innerWidth - br.right) + "px";
+          menuEl.style.bottom = Math.round(window.innerHeight - br.top + 6) + "px";
+          menuEl.style.maxHeight = Math.max(140, Math.round(br.top - 16)) + "px";
+        }
+        return;
+      }
+
+      // Anchored mode: the provider wants the integrated, in-composer LOOK but
+      // its composer is a framework-reconciled subtree we must NOT insert our
+      // node into (e.g. Kimi's Vue tree - inserting #zs-bar there makes Vue's
+      // next diff reuse the bar node as a host and nest the editor inside it).
+      // So we keep the bar in our own #zs-root, position it (position:fixed) to
+      // hug the composer's top edge at full width, and RESERVE that strip with
+      // padding-top on the composer so it reads as in-flow without ever becoming
+      // a child of the framework's DOM. barAnchor() returns the element to hug.
+      const anchorEl = (P.barAnchor && P.barAnchor()) || null;
+      if (anchorEl && anchorEl.isConnected) {
+        bar.classList.remove("zs-bar-inline", "zs-bar-inside");
+        bar.classList.add("zs-bar-anchored");
+        if (root && bar.parentElement !== root) root.appendChild(bar);
+        const r = anchorEl.getBoundingClientRect();
+        if (!r.width) { bar.style.display = "none"; clearAnchorPad(); if (menuEl) menuEl.hidden = true; return; }
+        bar.style.display = "flex";
+        const bh = bar.offsetHeight || 34;
+        if (anchorPadEl && anchorPadEl !== anchorEl) clearAnchorPad();
+        anchorPadEl = anchorEl;
+        anchorEl.style.paddingTop = (bh + 6) + "px"; // reserve the strip the bar sits in (+gap)
+        bar.style.left = Math.round(r.left) + "px";
+        bar.style.top = Math.round(r.top) + "px";
+        bar.style.width = Math.round(r.width) + "px";
+        if (menuEl && !menuEl.hidden) {
+          bar.classList.remove("zs-bar-inline"); // ensure fixed geometry for menu math
+          menuEl.style.right = Math.round(window.innerWidth - (r.left + r.width)) + "px";
+          menuEl.style.bottom = Math.round(window.innerHeight - r.top + 6) + "px";
+          menuEl.style.maxHeight = Math.max(140, Math.round(r.top - 16)) + "px";
+        }
+        return;
+      }
+      bar.classList.remove("zs-bar-anchored");
+      clearAnchorPad();
+
+      // Fallback: float just above the editor (fixed positioning), for sites
+      // where no clean inline mount could be resolved.
+      if (bar.classList.contains("zs-bar-inline")) {
+        bar.classList.remove("zs-bar-inline");
+        if (root && bar.parentElement !== root) root.appendChild(bar);
+      }
+      const f = (P.getEditor && P.getEditor()) || (P.composerFrame && P.composerFrame());
+      if (!f) { bar.style.display = "none"; if (menuEl) menuEl.hidden = true; return; }
+      bar.style.display = "flex";
+      const r = f.getBoundingClientRect();
+      if (!r.width) { bar.style.display = "none"; return; }
+      const w = Math.min(r.width, BAR_MAX_W);
+      const left = Math.round(r.left + (r.width - w) / 2);
+      const bh = bar.offsetHeight || 40;
+      const top = Math.max(4, Math.round(r.top - bh - BAR_GAP));
+      bar.style.width = w + "px";
+      bar.style.left = left + "px";
+      bar.style.top = top + "px";
+      // Keep the open "more" menu anchored to the bar, opening upward.
+      if (menuEl && !menuEl.hidden) {
+        const br = bar.getBoundingClientRect();
+        menuEl.style.right = Math.round(window.innerWidth - br.right) + "px";
+        menuEl.style.bottom = Math.round(window.innerHeight - br.top + 6) + "px";
+        menuEl.style.maxHeight = Math.max(140, Math.round(br.top - 16)) + "px";
+      }
+    }
+
+    // Called by the core's sweep + after state changes: refresh the bar content.
+    // (Positioning runs continuously in placeBar; this only updates what's shown.)
+    function updateStartGate() { renderBar(); }
 
     // Masks the input box while the extension types/sends, so the copied text
     // and the submit aren't visible to the user.
@@ -1540,10 +1693,17 @@
         const e = P.getEditor();
         if (!e || cover.style.display === "none") return;
         const r = e.getBoundingClientRect();
-        cover.style.left = r.left + "px";
-        cover.style.top = r.top + "px";
-        cover.style.width = r.width + "px";
-        cover.style.height = Math.max(r.height, 36) + "px";
+        // Optionally overshoot the editor box by PAD px on every side. Some
+        // composers (Gemini's Quill) keep typed text near rounded corners, so a
+        // cover sized EXACTLY to the editor leaves slivers of text peeking; those
+        // providers set coverPad to bleed past the edges. A native <textarea>
+        // (DeepSeek) needs none - overshooting there just makes the cover overflow
+        // the composer, so it defaults to 0.
+        const PAD = P.coverPad || 0;
+        cover.style.left = (r.left - PAD) + "px";
+        cover.style.top = (r.top - PAD) + "px";
+        cover.style.width = (r.width + PAD * 2) + "px";
+        cover.style.height = (Math.max(r.height, 36) + PAD * 2) + "px";
         cover.style.background = opaqueBg(e);
         coverRaf = requestAnimationFrame(place);
       };
@@ -1595,7 +1755,7 @@
     }
 
     build();
-    return { setStatus, setStarted, setStarting, showStop, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt };
+    return { setStatus, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt };
   })();
 
   // ── Live token + timer, shown ONLY on a tool call's chip detail. The
@@ -1629,9 +1789,22 @@
     // signal): a SHORT command after a long reasoning phase shows its stop
     // square for only a frame or two - too briefly for this 200ms sampler.
     if (gen) A.lastGenAt = Date.now();
-    // The "■ Stop" button, by contrast, uses the STRICT hard signal so it never
-    // flashes on reload / scroll. The loop-active case is covered by A.running.
-    ui.showStop(A.running || A.toolRunning || P.isHardGenerating());
+    // Our "■ Stop" button stays visible for the WHOLE active turn (generation,
+    // reasoning, or a tool/wait running on the bridge). It is complete on its own
+    // - stopLoop both halts our loop AND clicks the site's native stop - and the
+    // site's native stop likewise halts our loop via onNativeStop, so either one
+    // fully stops everything. Two stop buttons at once is fine.
+    // The bare isHardGenerating() term is gated on a live ZeroScript session: on
+    // a plain chat with no session, a user's own message makes the site generate,
+    // and we must NOT briefly flash our Stop button over that.
+    // Self-heal a stuck "Stopping…": if we flagged stopping but nothing is
+    // actually busy anymore (the loop's finally never ran because the Stop landed
+    // before a loop started, or a pending start was cancelled), release it so the
+    // button doesn't freeze on "Stopping…".
+    if (A.stopping && !A.running && !A.toolRunning && !(A.started && P.isHardGenerating())) {
+      A.stopping = false;
+    }
+    ui.showStop(A.running || A.toolRunning || A.stopping || (A.started && P.isHardGenerating()));
 
     // Tool is executing on the MCP → timer on its chip.
     if (A.toolRunning && A.toolItem) {
@@ -1663,7 +1836,7 @@
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === "zs-status") {
-      ui.setStatus({ connected: msg.connected, mcpAlive: msg.mcpAlive, studio: msg.studio, tools: msg.tools, servers: msg.servers });
+      ui.setStatus({ connected: msg.connected, mcpAlive: msg.mcpAlive, studio: msg.studio, studioApp: msg.studioApp, tools: msg.tools, servers: msg.servers });
     }
   });
 
@@ -1710,15 +1883,54 @@
     return false;
   }
   function syncSessionState() {
+    // While a bootstrap runs, track its conversation. The bootstrap chat gets a
+    // real id only AFTER the prompt lands (fresh "/app" → "/app/<id>"), so we pin
+    // the id the first time the chat has content. A change to a DIFFERENT, EMPTY
+    // chat means the user opened a new conversation → abort: bump the generation
+    // (the in-flight startSession bails at its next checkpoint) and clear state so
+    // the new chat shows its own status instead of a stale "Starting…".
+    if (A.starting) {
+      const key = P.conversationKey();
+      if (A.startingKey == null) {
+        if (key && !P.chatIsEmpty()) A.startingKey = key; // pin the stable id
+      } else if (key !== A.startingKey && P.chatIsEmpty()) {
+        A.startGen++;
+        A.starting = false;
+        A.startingKey = null;
+        P.setInputLock(false);
+        ui.setStarting(false);
+      }
+    }
+    // Same idea for a RUNNING loop: if the user opens a NEW, empty conversation
+    // via the SITE's own new-chat (not ZeroScript's button), the loop is bound to
+    // a chat the user left, so abandon it. Otherwise A.running keeps this function
+    // early-returning below and the stale "Agent active" / Stop button lingers on
+    // the fresh chat instead of "Start Roblox agent". The "/app" → "/app/<id>" id
+    // assignment of the SAME chat is not a move (loopKey is pinned only once the
+    // chat has both an id and content), so a normal session is never disturbed.
+    if (A.running) {
+      const key = P.conversationKey();
+      if (A.loopKey == null) {
+        if (key && !P.chatIsEmpty()) A.loopKey = key; // pin the loop's conversation
+      } else if (key !== A.loopKey && P.chatIsEmpty()) {
+        diag("loop.abandonedNewChat", { from: A.loopKey, to: key });
+        A.stop = true;       // the loop breaks at its next checkpoint; its finally
+        A.loopKey = null;    // resets A.running / cover / lock, then state recomputes
+      }
+    }
     if (A.starting || A.injecting || A.running) return;
     const path = P.conversationKey();
     const markerInDom = domHasZsSignal();
     if (markerInDom) rememberSession(path);
     let has;
-    if (path === lastSyncPath) {
-      // SAME conversation: never downgrade a known-started session just because
-      // virtualization scrolled the marker out of the DOM. "started" is sticky
-      // until the key actually changes (a different conversation).
+    if (path && path === lastSyncPath) {
+      // SAME, REAL conversation: never downgrade a known-started session just
+      // because virtualization scrolled the marker out of the DOM. "started" is
+      // sticky until the key actually changes (a different conversation).
+      // NOTE: a falsy key ("" = a transient/fresh chat with no id yet) is NEVER
+      // sticky - every fresh chat shares "", so a brief transient sweep during
+      // navigation would otherwise PIN lastSyncPath="" with has=true and then keep
+      // "Agent active" forever on the next empty chat (it would never recompute).
       has = A.started || markerInDom || (!!path && startedSessions.has(path));
     } else {
       // Different conversation → recompute from scratch.
@@ -1768,13 +1980,20 @@
       // the loop is allowed to run again.
       A.userStopped = false;
       captureSendToken(); // identity of the assistant turn before this reply
-      setTimeout(() => { if (!A.running) agentLoop(base); }, 300);
+      // A Stop clicked during this 300ms window sets A.userStopped → honor it and
+      // do NOT start the loop (otherwise the stop is silently ignored and the
+      // freshly-started loop strands the "Stopping…" flag).
+      setTimeout(() => { if (!A.running && !A.userStopped) agentLoop(base); }, 300);
     },
     onNativeStop: () => {
       // A click on the site's own stop = a deliberate manual stop → suppress
       // auto-resume.
       A.userStopped = true;
       A.stop = true;
+      // If our loop is live, mirror the same "Stopping…" feedback as our own
+      // Stop button so the bar reflects the wind-down instead of flickering.
+      if (A.running && !A.stopping) { A.stopping = true; ui.markStopping(); }
+      markStoppedTurn();
       diag("nativeStop");
     },
     onNativeContinue: () => {
@@ -1783,6 +2002,8 @@
       // (resumed) turn's tool call back up cleanly.
       A.userStopped = false;
       A.stop = false;
+      const it = P.lastAssistant();   // a real resume → drop the stopped marker
+      if (it) delete it.dataset.zStopped;
       diag("nativeContinue");
     },
   });

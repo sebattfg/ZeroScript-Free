@@ -44,6 +44,8 @@ const ZSProvider = (() => {
     composer: ".chat-box",
     sendBtn: ".send-button-container",
     codeWrap: ".segment-code",
+    // New-chat control: the wrapper is `.sidebar-new-chat`, but the real router
+    // link is the `<a class="new-chat-btn">` inside it - see findNewChatButton().
     newChat: ".sidebar-new-chat",
     errorSurfaces: '[role="alert"],[class*="toast"],[class*="error"],[class*="alert"],[class*="notification"]',
   };
@@ -166,6 +168,21 @@ const ZSProvider = (() => {
       composerFrame();
   };
 
+  // Deliberately NO barMount(): an in-flow mount (as DeepSeek/Gemini do) is
+  // unsafe on Kimi because every candidate parent is inside Vue's reconciled
+  // subtree - inserting our foreign #zs-bar into `.chat-editor` makes Vue's next
+  // diff reuse the bar node as a host and nest the composer editor INSIDE it,
+  // breaking typing entirely (observed live). Instead we expose barAnchor():
+  // the core keeps the bar in its own #zs-root (position:fixed) but positions it
+  // to hug the composer card's top edge at full width and reserves that strip
+  // with padding-top, giving the integrated DeepSeek look with zero DOM
+  // insertion into Vue's tree. The element to hug is the rounded composer card
+  // `.chat-editor` (holds the text box then the toolbar row).
+  function barAnchor() {
+    const ed = getEditor();
+    return (ed && ed.closest(".chat-editor")) || null;
+  }
+
   // ── Chip anchor ───────────────────────────────────────────────────────────
   // The turn is a flex ROW [avatar | container]; inserting the chip at the turn
   // root's firstChild would make it the avatar's flex sibling and shove the
@@ -180,32 +197,54 @@ const ZSProvider = (() => {
   // our own execCommand injection, so typeAndSend temporarily re-enables it.
   // Lexical has no `placeholder` attribute (unlike DeepSeek's textarea); its
   // placeholder is a sibling `.chat-input-placeholder` element shown while the
-  // editor is empty - so we swap ITS text to surface the "Agent working" notice
-  // (validated live: the text sticks, Lexical does not rewrite it).
-  let _locked = false;
+  // editor is empty - so we swap ITS text to surface the "Agent working" notice.
+  // IMPORTANT: Vue RECREATES that placeholder node after every inject/clear cycle
+  // (validated live), dropping our text - so while locked we re-assert it on a
+  // small interval rather than setting it once. The site's real placeholder text
+  // is captured the first time we lock so we can restore it on unlock regardless
+  // of which (recreated) node is current.
+  const LOCK_MSG = "⏳ Agent working… please wait";
+  let _locked = false, _phTimer = null, _phObs = null, _origPlaceholder = null;
   const placeholderEl = () => {
     const ed = getEditor();
     const cont = ed && (ed.closest(".chat-input-editor-container") || ed.parentElement);
     return cont ? cont.querySelector(".chat-input-placeholder") : null;
   };
+  const lockContainer = () => {
+    const ed = getEditor();
+    return ed && (ed.closest(".chat-input") || ed.closest(".chat-input-editor-container") || ed.parentElement);
+  };
+  function applyLockedPlaceholder() {
+    if (!_locked) return;
+    const ph = placeholderEl();
+    if (!ph) return;
+    const cur = ph.textContent || "";
+    if (cur === LOCK_MSG) return;
+    if (_origPlaceholder == null) _origPlaceholder = cur; // first real text seen
+    ph.textContent = LOCK_MSG;
+  }
   function setInputLock(on) {
     _locked = on;
     const ed = getEditor();
-    if (!ed) return;
-    ed.setAttribute("contenteditable", on ? "false" : "true");
-    const ph = placeholderEl();
     if (on) {
-      ed.setAttribute("data-zs-locked", "1");
-      if (ph) {
-        if (ph.dataset.zsPlaceholder == null) ph.dataset.zsPlaceholder = ph.textContent || "";
-        ph.textContent = "⏳ Agent working… please wait";
+      if (ed) { ed.setAttribute("contenteditable", "false"); ed.setAttribute("data-zs-locked", "1"); }
+      applyLockedPlaceholder();
+      // Vue recreates the placeholder node after each inject/clear cycle, so watch
+      // the composer subtree and re-assert our text the instant it reappears (no
+      // flash of the site's default text). A slow interval backstops the observer.
+      const cont = lockContainer();
+      if (cont && !_phObs) {
+        _phObs = new MutationObserver(applyLockedPlaceholder);
+        try { _phObs.observe(cont, { childList: true, subtree: true }); } catch {}
       }
+      if (!_phTimer) _phTimer = setInterval(applyLockedPlaceholder, 400);
     } else {
-      ed.removeAttribute("data-zs-locked");
-      if (ph && ph.dataset.zsPlaceholder != null) {
-        ph.textContent = ph.dataset.zsPlaceholder;
-        delete ph.dataset.zsPlaceholder;
-      }
+      if (_phObs) { try { _phObs.disconnect(); } catch {} _phObs = null; }
+      if (_phTimer) { clearInterval(_phTimer); _phTimer = null; }
+      if (ed) { ed.setAttribute("contenteditable", "true"); ed.removeAttribute("data-zs-locked"); }
+      // Restore the site's own placeholder text on whatever node is current now.
+      const ph = placeholderEl();
+      if (ph && _origPlaceholder != null) ph.textContent = _origPlaceholder;
     }
   }
 
@@ -391,10 +430,16 @@ const ZSProvider = (() => {
   }
 
   // ── New chat navigation ───────────────────────────────────────────────────
+  // Prefer the real router link `a.new-chat-btn` (clicking its wrapper DIV
+  // `.sidebar-new-chat` does NOT trigger the SPA route change). querySelectorAll
+  // returns DOM order (the wrapper, an ancestor, would come first), so try the
+  // anchor selectors in priority order and only fall back to the wrapper.
   function findNewChatButton() {
-    for (const b of document.querySelectorAll(S.newChat)) {
-      if (b.offsetParent === null) continue;
-      return b;
+    for (const sel of [".sidebar-new-chat .new-chat-btn", "a.new-chat-btn", ".sidebar-new-chat"]) {
+      for (const b of document.querySelectorAll(sel)) {
+        if (b.offsetParent === null) continue;
+        return b;
+      }
     }
     return null;
   }
@@ -424,9 +469,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return; // existing conversation → not ours to gate
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -446,9 +489,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return;
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -514,7 +555,7 @@ const ZSProvider = (() => {
     assistantCount, userCount, lastAssistant, readAssistant,
     streamLen, snapshot,
     // composer / state
-    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame, gateTarget,
+    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame, gateTarget, barAnchor,
     setInputLock, typeAndSend, stopGeneration,
     isGenerating, isBusyNow, isHardGenerating,
     enforceComposer, ensureComposerReady,

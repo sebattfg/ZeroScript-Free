@@ -151,6 +151,18 @@ const ZSProvider = (() => {
   // The composer box the Start gate hides as one unit.
   const composerFrame = () => document.querySelector(S.inputArea);
 
+  // Where the core mounts its in-flow status bar. The <input-area-v2> composer
+  // sits inside a flex-COLUMN <fieldset.input-area-container>, so inserting the
+  // bar right before the composer makes it span the full input width and push
+  // the composer down (validated live). Returns {parent, before}.
+  function barMount() {
+    const ia = composerFrame();
+    if (!ia) return null;
+    const col = ia.parentElement; // fieldset.input-area-container (flex column)
+    if (!col) return null;
+    return { parent: col, before: ia };
+  }
+
   // ── Input lock ────────────────────────────────────────────────────────────
   // Quill is a contenteditable: flipping contenteditable=false would also block
   // our own execCommand injection, so typeAndSend temporarily re-enables it.
@@ -277,6 +289,20 @@ const ZSProvider = (() => {
   // button appears. This works reliably WHEN the composer is actually visible
   // (the Start gate is removed before the loop sends), which it always is during
   // the agentic loop. A selectAll first guarantees we replace any stale content.
+  // PERF + FIDELITY (measured live, 2026): a single execCommand("insertText") of a
+  // MULTI-LINE string is catastrophically slow in Gemini's Quill editor - every
+  // "\n" makes Quill split the content into a new <p> block and re-normalise the
+  // whole document, ~80ms PER LINE (linear). A ~90-line system prompt froze the
+  // composer for ~7s under the "Working…" cover (big tool outputs stalled too).
+  // We instead insert each line with insertText and join them with insertLineBreak
+  // (a SOFT break, like Shift+Enter): the content stays in ONE block (~3ms/line,
+  // ~430ms for 150 lines) yet Gemini STILL transmits the message as real, separate
+  // lines (validated: the sent turn renders one query-text-line per line). Keeping
+  // real line structure matters - an earlier attempt that flattened newlines to
+  // U+2028 made the image-capable "Flash" model misfire into GENERATING AN IMAGE
+  // at boot, because the prompt arrived as one mangled line. The first op runs over
+  // the select-all so any stale content is replaced; empty lines skip insertText
+  // (an empty insertText collapses the selection and breaks the following inserts).
   function setEditorText(ed, text) {
     ed.focus();
     const sel = window.getSelection();
@@ -284,13 +310,11 @@ const ZSProvider = (() => {
     range.selectNodeContents(ed);
     sel.removeAllRanges();
     sel.addRange(range);
-    // ONE insertText over the select-all: execCommand replaces the selection,
-    // so any leftover content is overwritten. Do NOT "clear first" with an
-    // empty insertText - validated live that it returns true but collapses
-    // the selection in a way that makes the following insertText FAIL
-    // (returns false, editor stays empty), which left the bootstrap stuck on
-    // "Starting Session..." forever.
-    document.execCommand("insertText", false, text);
+    const lines = String(text).split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]) document.execCommand("insertText", false, lines[i]);
+      if (i < lines.length - 1) document.execCommand("insertLineBreak");
+    }
   }
 
   async function typeAndSend(text) {
@@ -409,9 +433,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return; // existing conversation → not ours to gate
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -434,9 +456,7 @@ const ZSProvider = (() => {
         if (handlers.isBlocked()) return;
         if (!handlers.isStarted()) {
           if (!chatIsEmpty()) return;
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          handlers.onBlockedAttempt();
+          handlers.onBlockedAttempt(); // nudge only; never block plain chat
           return;
         }
         handlers.onUserMessage(assistantCount());
@@ -498,6 +518,11 @@ const ZSProvider = (() => {
     // wiping any chip placed inside it. Tell the core to anchor chips at the
     // turn-element level instead, where they survive those re-renders.
     chipAtItemLevel: true,
+    // The "Working…" input cover overshoots the editor box by this many px on
+    // each side. Gemini's Quill keeps typed text near the rounded corners, so a
+    // few px of bleed hides the slivers that would otherwise peek (see placeBar /
+    // inputCover). Providers with a native <textarea> omit this (default 0).
+    coverPad: 8,
     // Gemini's turn elements are semantic and never virtualized away, so
     // assistantCount() reliably increases for every new reply. The core's
     // watcher uses this to refuse finalizing before this send's reply turn
@@ -515,7 +540,7 @@ const ZSProvider = (() => {
     assistantCount, userCount, lastAssistant, readAssistant,
     streamLen, snapshot,
     // composer / state
-    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame,
+    getEditor, editorText, chatIsEmpty, isFreshChat, composerFrame, barMount,
     setInputLock, typeAndSend, stopGeneration,
     isGenerating, isBusyNow, isHardGenerating,
     enforceComposer, ensureComposerReady,

@@ -7,105 +7,242 @@
   font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-/* ── control panel ─────────────────────────────────────────── */
-#zs-panel {
+/* ── status bar (anchored above the composer; left/top/width set inline) ──── */
+#zs-bar {
   position: fixed;
-  right: 18px;
-  top: 18px;
-  width: 268px;
-  padding: 14px 15px;
-  background: linear-gradient(160deg, rgba(28, 28, 38, 0.96), rgba(18, 18, 24, 0.96));
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  padding: 7px 9px 7px 12px;
+  background: rgba(20, 20, 28, 0.97);
   color: #e8e8ec;
-  border: 1px solid rgba(129, 140, 248, 0.28);
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  border: 1px solid rgba(129, 140, 248, 0.30);
+  border-radius: 13px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(10px);
   font-size: 12px;
   user-select: none;
 }
-.zs-row { display: flex; align-items: center; gap: 8px; }
-.zs-sub { margin-top: 5px; opacity: 0.75; font-size: 11px; }
-/* Permanent provider-instability notice (set by the provider's
-   unstableWarning). Amber, small, always visible; full text on hover. */
-#zs-unstable {
-  margin-top: 6px; font-size: 10.5px; line-height: 1.35;
-  color: #fbbf24; background: rgba(251, 191, 36, 0.10);
-  border: 1px solid rgba(251, 191, 36, 0.30);
-  padding: 3px 7px; border-radius: 6px;
-  cursor: help;
+
+/* In-flow mode: the bar is a real, full-width node in the composer layout that
+   pushes content down instead of floating. Two looks:
+   • default (mounted ABOVE the input box, e.g. Gemini) → a subtle surface card so
+     it reads as a panel and doesn't float in empty space;
+   • .zs-bar-inside (mounted INSIDE the input box, e.g. DeepSeek) → transparent
+     with just a divider, so it blends into the composer surface it lives in. */
+#zs-bar.zs-bar-inline {
+  position: static;
+  width: 100%;
+  left: auto; top: auto;
+  margin: 0 0 8px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+  box-shadow: none;
+  backdrop-filter: none;
+  padding: 7px 12px;
 }
-#zs-title { font-weight: 700; letter-spacing: 0.2px; flex: 1; font-size: 14px; }
-.zs-free {
-  font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
-  color: #34d399; background: rgba(52, 211, 153, 0.14);
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  padding: 1px 5px; border-radius: 5px; vertical-align: middle;
+html.zs-light #zs-bar.zs-bar-inline {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
 }
-#zs-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+#zs-bar.zs-bar-inline.zs-bar-inside {
+  margin: 0 0 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  /* Inset to match the composer's own text padding (≈16px) so the content lines
+     up with the input and the right-side buttons clear the rounded corner. */
+  padding: 4px 16px 10px;
+}
+html.zs-light #zs-bar.zs-bar-inline.zs-bar-inside {
+  background: transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Anchored mode: the bar keeps position:fixed (it must NOT enter the site's
+   framework-managed composer DOM, e.g. Kimi's Vue subtree) but the core sizes
+   and positions it to hug the composer's top edge at full width, with reserved
+   padding on the composer so it reads as in-flow. Transparent like the
+   .zs-bar-inside look, so it blends into the composer surface. */
+#zs-bar.zs-bar-anchored {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  /* A touch of vertical room so the bar doesn't feel cramped against the input
+     (matches the roomier DeepSeek inline look). The reserved strip in placeBar
+     (bar height + gap) tracks this automatically. */
+  padding: 9px 16px;
+}
+html.zs-light #zs-bar.zs-bar-anchored {
+  background: transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Per-site tuning. On Gemini the default system stack looked foreign next to
+   Google Sans, and weight 700 read heavy - match the host for a native feel.
+   DeepSeek is left exactly as-is (it already blends well). */
+#zs-bar.zs-prov-gemini {
+  font-family: "Google Sans Text", "Google Sans", Roboto, ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+}
+#zs-bar.zs-prov-gemini #zs-brand,
+#zs-bar.zs-prov-gemini #zs-action,
+#zs-bar.zs-prov-gemini #zs-state b { font-weight: 500; }
+
+#zs-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; cursor: help; }
 #zs-dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
 #zs-dot.warn { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
 #zs-dot.off { background: #6b7280; }
 
-/* ── header icon buttons (sites / gear / kofi / discord) ───── */
-#zs-sites, #zs-gear, #zs-kofi, #zs-discord {
-  display: flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; flex: none; padding: 0;
-  border-radius: 8px; border-width: 1px; border-style: solid;
-  font-size: 12px; line-height: 1; cursor: pointer;
-  transition: filter 0.15s ease, background 0.15s ease;
-  text-decoration: none;
+#zs-brand { font-weight: 700; letter-spacing: 0.2px; flex: none; font-size: 12.5px; }
+.zs-free {
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  color: #34d399; background: rgba(52, 211, 153, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  padding: 1px 4px; border-radius: 5px; vertical-align: middle;
 }
-#zs-kofi {
-  background: rgba(255, 105, 135, 0.15); color: #ff8fa3;
-  border-color: rgba(255, 105, 135, 0.4); font-size: 13px;
-}
-#zs-kofi:hover { background: rgba(255, 105, 135, 0.28); filter: brightness(1.1); }
 
-/* Discord icon button */
+/* provider instability warning (Gemini / Kimi): a small amber chip; click it for
+   the full explanation (it's also the title tooltip). */
+#zs-unstable {
+  flex: none; cursor: pointer; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.3px; white-space: nowrap;
+  color: #fbbf24; background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  padding: 2px 7px; border-radius: 6px; line-height: 1.3;
+  transition: background 0.15s ease;
+}
+#zs-unstable:hover { background: rgba(251, 191, 36, 0.22); }
+
+/* state line: takes the slack, single line, ellipsis if it can't fit */
+#zs-state {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; line-height: 1.3; opacity: 0.85;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.zs-state-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#zs-state b { font-weight: 700; opacity: 1; color: #c7d2fe; }
+#zs-state.zs-state-warn { opacity: 1; color: #fca5a5; }
+#zs-state.zs-state-warn b { color: #fecaca; }
+#zs-bar.tone-active #zs-state b { color: #6ee7b7; }
+
+/* live + idle dots inside the state line */
+.zs-live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #34d399; flex: none;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
+  animation: zs-live 1.8s ease-out infinite;
+}
+@keyframes zs-live {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
+  100% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
+}
+.zs-live-dot.idle { background: #9ca3af; animation: none; box-shadow: none; }
+
+/* primary action button (Start / New session / New chat) */
+#zs-action {
+  flex: none;
+  padding: 7px 13px;
+  border-radius: 9px; border: 1px solid transparent;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+#zs-action[data-kind="start"] {
+  background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff; border-color: transparent;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.45);
+}
+#zs-action[data-kind="start"]:hover { filter: brightness(1.08); }
+#zs-action[data-kind="new-session"],
+#zs-action[data-kind="new-chat"] {
+  background: rgba(255, 255, 255, 0.08); color: #cbd0e0;
+  border-color: rgba(255, 255, 255, 0.14); font-weight: 600;
+}
+#zs-action[data-kind="new-session"]:hover,
+#zs-action[data-kind="new-chat"]:hover { background: rgba(255, 255, 255, 0.16); }
+#zs-action:disabled {
+  background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.10); box-shadow: none; cursor: not-allowed;
+}
+/* attention flash when the user sends on a fresh chat without starting */
+#zs-action.zs-flash { animation: zs-flash 0.4s ease-in-out 3; }
+@keyframes zs-flash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.6); }
+}
+
+/* stop button (replaces the action button while the agent is busy) */
+#zs-stop {
+  flex: none; padding: 7px 13px;
+  background: #ef4444; color: #fff; border: 0; border-radius: 9px;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+#zs-stop:hover { background: #dc2626; }
+/* Winding-down state: the loop is finishing its in-flight step after a Stop
+   click. Dimmed + not-allowed so it reads as "registered, please wait". */
+#zs-stop[data-state="stopping"] {
+  background: #b45309; cursor: progress; opacity: 0.85;
+}
+#zs-stop[data-state="stopping"]:hover { background: #b45309; }
+
+/* Discord button (always visible in the bar) */
 #zs-discord {
+  flex: none; width: 28px; height: 28px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
   background: rgba(88, 101, 242, 0.15); color: #a5b4fc;
-  border-color: rgba(88, 101, 242, 0.4);
+  border: 1px solid rgba(88, 101, 242, 0.4); border-radius: 8px;
+  cursor: pointer; text-decoration: none;
+  transition: background 0.15s ease, filter 0.15s ease;
 }
 #zs-discord:hover { background: rgba(88, 101, 242, 0.28); filter: brightness(1.1); }
 
-/* tip menu (Ko-fi + Robux game passes) */
-#zs-tip-menu {
-  margin-top: 10px; padding: 10px;
-  background: rgba(12, 12, 18, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;
-}
-.zs-tip-h { font-size: 11px; font-weight: 700; opacity: 0.85; margin-bottom: 8px; }
-.zs-tip-sep {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
-  opacity: 0.45; margin: 8px 0 6px; text-align: center;
-}
-.zs-tip-opt {
-  width: 100%; margin: 4px 0; padding: 7px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
-  transition: filter 0.15s ease, background 0.15s ease;
-}
-.zs-tip-opt:hover { filter: brightness(1.12); }
-.zs-tip-kofi { background: rgba(255, 105, 135, 0.16); color: #ff8fa3; }
-.zs-tip-rbx {
-  background: rgba(129, 140, 248, 0.14); color: #c7d2fe;
-  display: flex; justify-content: space-between; align-items: center;
-}
-
-/* other-AI-sites button */
-#zs-sites {
+/* the "more" (⋯) button */
+#zs-more {
+  flex: none; width: 28px; height: 28px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.06); color: #c7d2fe;
-  border-color: rgba(255, 255, 255, 0.14); font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
+  font-size: 16px; line-height: 1; cursor: pointer;
+  transition: background 0.15s ease;
 }
-#zs-sites:hover { background: rgba(255, 255, 255, 0.13); filter: brightness(1.1); }
+#zs-more:hover { background: rgba(255, 255, 255, 0.14); }
 
-/* other-AI-sites menu */
-#zs-sites-menu {
-  margin-top: 10px; padding: 10px;
-  background: rgba(12, 12, 18, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;
+/* ── the "more" menu popover (right/bottom set inline) ────────────────────── */
+#zs-menu {
+  position: fixed;
+  box-sizing: border-box;
+  width: 264px; overflow-y: auto;
+  padding: 10px;
+  background: rgba(14, 14, 20, 0.98);
+  color: #e8e8ec;
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  animation: zs-pop 0.16s ease-out;
 }
-.zs-sites-h { font-size: 11px; font-weight: 700; opacity: 0.85; margin-bottom: 8px; }
+@keyframes zs-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+/* discreet dark scrollbar (default white one looks out of place) */
+#zs-menu { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.22) transparent; }
+#zs-menu::-webkit-scrollbar { width: 8px; }
+#zs-menu::-webkit-scrollbar-track { background: transparent; }
+#zs-menu::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18); border-radius: 8px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+#zs-menu::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.30); background-clip: padding-box; }
+html.zs-light #zs-menu { scrollbar-color: rgba(0,0,0,0.25) transparent; }
+html.zs-light #zs-menu::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); background-clip: padding-box; }
+.zs-menu-sec { padding: 4px 0 10px; }
+.zs-menu-sec + .zs-menu-sec { border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 10px; }
+.zs-menu-h { font-size: 11px; font-weight: 700; opacity: 0.85; margin-bottom: 7px; }
+.zs-menu-note { font-size: 10px; opacity: 0.55; line-height: 1.4; margin-bottom: 7px; }
+
 .zs-site-opt {
   width: 100%; box-sizing: border-box; margin: 4px 0; padding: 8px 10px;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -123,23 +260,8 @@ button.zs-site-opt:hover { background: rgba(129, 140, 248, 0.24); filter: bright
   border: 1px solid rgba(52, 211, 153, 0.35); padding: 1px 5px; border-radius: 5px;
 }
 
-/* settings (gear) button */
-#zs-gear {
-  background: rgba(255, 255, 255, 0.06); color: #c7d2fe;
-  border-color: rgba(255, 255, 255, 0.14); font-size: 13px;
-}
-#zs-gear:hover { background: rgba(255, 255, 255, 0.13); filter: brightness(1.1); }
-
-/* custom-prompt settings panel */
-#zs-settings {
-  margin-top: 10px; padding: 10px;
-  background: rgba(12, 12, 18, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;
-}
-.zs-set-h { font-size: 12px; font-weight: 700; opacity: 0.9; margin-bottom: 4px; }
-.zs-set-sub { font-size: 10px; opacity: 0.55; line-height: 1.4; margin-bottom: 8px; }
 #zs-set-text {
-  width: 100%; box-sizing: border-box; resize: vertical; min-height: 70px;
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 58px;
   background: rgba(0, 0, 0, 0.35); color: #e5e7eb;
   border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px;
   padding: 7px 9px; font-size: 12px; font-family: inherit; line-height: 1.4;
@@ -155,142 +277,24 @@ button.zs-site-opt:hover { background: rgba(129, 140, 248, 0.24); filter: bright
 #zs-set-save:hover { background: rgba(129, 140, 248, 0.3); filter: brightness(1.1); }
 #zs-set-status { font-size: 11px; color: #34d399; font-weight: 600; }
 
-/* ── onboarding CTA ────────────────────────────────────────── */
-#zs-cta { margin-top: 12px; }
-#zs-start {
-  width: 100%; padding: 11px;
-  display: flex; align-items: center; justify-content: center; gap: 9px;
-  background: linear-gradient(135deg, #6366f1, #818cf8);
-  color: #fff; border: 0; border-radius: 11px;
-  font-size: 14px; font-weight: 700; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
-  animation: zs-pulse 2s ease-in-out infinite;
-  transition: filter 0.15s ease;
-}
-/* While starting up the button is calm (no pulse) and shows a spinner. */
-#zs-start:disabled .zs-spin { border-top-color: #fff; border-color: rgba(255,255,255,0.45); }
-#zs-start:hover { filter: brightness(1.08); }
-#zs-start:disabled {
-  background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.5);
-  box-shadow: none; cursor: not-allowed; animation: none;
-}
-@keyframes zs-pulse {
-  0%, 100% { box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45); }
-  50% { box-shadow: 0 4px 22px rgba(129, 140, 248, 0.75); }
-}
-#zs-hint {
-  margin-top: 9px; font-size: 11px; line-height: 1.45;
-  opacity: 0.8; text-align: center;
-}
-#zs-hint b { color: #c7d2fe; }
-/* Blocking warning (no bridge / not a blank chat): red so it can't be missed. */
-#zs-hint.zs-hint-warn {
-  opacity: 1; color: #fca5a5; font-weight: 600;
-}
-#zs-hint.zs-hint-warn b { color: #fecaca; }
-
-/* ── session-active state ──────────────────────────────────── */
-#zs-active { margin-top: 12px; }
-.zs-active-txt {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12px; font-weight: 600; color: #6ee7b7;
-}
-.zs-live-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: #34d399; flex: none;
-  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
-  animation: zs-live 1.8s ease-out infinite;
-}
-@keyframes zs-live {
-  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
-  100% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
-}
-/* Idle dot: shown when the panel offers "New session" on an existing chat that
-   has no live agent (no misleading green pulse). */
-.zs-live-dot.idle { background: #9ca3af; animation: none; box-shadow: none; }
-.zs-active-txt:has(.zs-live-dot.idle) { color: #cbd0e0; font-weight: 500; }
-#zs-new {
-  width: 100%; margin-top: 9px;
-  background: rgba(255, 255, 255, 0.08); color: #cbd0e0;
+.zs-tip-opt {
+  width: 100%; margin: 4px 0; padding: 7px 10px;
   border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
-  padding: 6px; font-size: 11px; cursor: pointer;
+  font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
+  transition: filter 0.15s ease, background 0.15s ease;
 }
-#zs-new:hover { background: rgba(255, 255, 255, 0.16); }
-
-#zs-stop {
-  margin-top: 10px; width: 100%;
-  background: #ef4444; color: #fff; border: 0; border-radius: 9px;
-  padding: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+.zs-tip-opt:hover { filter: brightness(1.12); }
+.zs-tip-kofi { background: rgba(255, 105, 135, 0.16); color: #ff8fa3; }
+.zs-tip-rbx {
+  background: rgba(129, 140, 248, 0.14); color: #c7d2fe;
+  display: flex; justify-content: space-between; align-items: center;
 }
-#zs-stop:hover { background: #dc2626; }
-
-/* On DeepSeek the primary footer button is the user's own send/stop control,
-   so we do NOT hide it - our panel's ■ Stop is an additional control. */
-
-/* ── composer mode enforcement ──────────────────────────────────
-   Force Expert, force "Pensée profonde / Réflexion" DeepThink ON, and
-   disable Search if DeepSeek exposes it. DeepThink is hidden by content.js
-   each sweep after enforcement,
-   so it survives DeepSeek's React re-renders. */
+.zs-tip-sep {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  opacity: 0.45; margin: 8px 0 6px; text-align: center;
+}
+/* ── composer mode enforcement (force Expert / DeepThink etc.) ────────────── */
 .zs-hide-el { display: none !important; }
-
-/* ── Start-session input gate ───────────────────────────────────
-   On a blank, not-yet-started conversation we hide the ENTIRE composer
-   box and bring the control panel up over it (enlarged), so a
-   non-technical user can't miss the mandatory "Start session" step.
-   visibility:hidden keeps the layout stable (no page jump) while making
-   the input + send + mode selector unclickable. */
-.zs-frame-hidden { visibility: hidden !important; }
-
-/* Gate mode: the control panel leaves its corner and sits over the
-   composer (left/top/width/min-height set inline at runtime). */
-#zs-root.zs-gate-on #zs-panel {
-  right: auto; bottom: auto;
-  display: flex; flex-direction: column; justify-content: center;
-  border-color: rgba(129, 140, 248, 0.6);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(129, 140, 248, 0.45);
-  animation: zs-gate-in 0.18s ease-out;
-}
-@keyframes zs-gate-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-/* In gate mode the Start button + hint are the focus. */
-#zs-root.zs-gate-on #zs-cta { margin-top: 14px; }
-#zs-root.zs-gate-on #zs-hint { font-size: 12px; opacity: 0.9; }
-
-/* Start gate (new, default): the composer stays visible and the panel stays in
-   its corner; this thin cover sits over the composer to block typing until the
-   session is started (position/size set inline at runtime). Clicking it nudges
-   the Start button. */
-#zs-gate-cover {
-  position: fixed;
-  z-index: 2147483590;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  border-radius: 12px;
-  background: rgba(20, 20, 28, 0.55);
-  backdrop-filter: blur(2px);
-  border: 1.5px dashed rgba(129, 140, 248, 0.6);
-  color: #c7d2fe;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-}
-html.zs-light #zs-gate-cover {
-  background: rgba(245, 245, 250, 0.6);
-  color: #4f46e5;
-  border-color: rgba(99, 102, 241, 0.55);
-}
-
-/* Start button attention flash (triggered when the user tries to send early) */
-#zs-start.zs-flash { animation: zs-flash 0.4s ease-in-out 3; }
-@keyframes zs-flash {
-  0%, 100% { transform: scale(1); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45); }
-  50% { transform: scale(1.05); box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.6), 0 4px 22px rgba(129, 140, 248, 0.9); }
-}
 
 /* ── input cover: fully hides the text the extension types + sends ──
    background colour is set inline at runtime to match the input box,
@@ -298,11 +302,12 @@ html.zs-light #zs-gate-cover {
 #zs-input-cover {
   position: fixed; z-index: 2147483500;
   display: flex; align-items: center; gap: 8px;
-  padding-left: 16px;
+  box-sizing: border-box; padding-left: 16px;
   border-radius: 14px;
   background: #ffffff;
   color: rgba(140, 140, 150, 0.9);
   font-size: 12px; font-family: ui-sans-serif, "Segoe UI", sans-serif;
+  white-space: nowrap; overflow: hidden;
   pointer-events: none;
 }
 
@@ -331,7 +336,7 @@ div[contenteditable='true'].zs-typing { caret-color: transparent !important; }
 .zs-tool-hide { display: none !important; }
 /* Gemini: Angular recreates the <code-block> elements inside a reply (once at
    the end-of-stream markdown settle, once again when the next turn is sent),
-   wiping any per-element .zs-tool-hide class — the raw command flashes until
+   wiping any per-element .zs-tool-hide class - the raw command flashes until
    the next sweep. <message-content> itself keeps its identity through those
    re-renders (validated live, 2026-06), so the provider marks IT with
    .zs-cmd-mask and this rule keeps every recreated code-block hidden with no
@@ -432,8 +437,8 @@ message-content.zs-cmd-mask code-block { display: none !important; }
 
 /* ── toast ─────────────────────────────────────────────────── */
 .zs-toast {
-  position: fixed; right: 18px; top: 200px;
-  max-width: 280px; padding: 9px 13px;
+  position: fixed; right: 18px; top: 80px;
+  max-width: 300px; padding: 9px 13px;
   background: rgba(30, 30, 36, 0.96); color: #e8e8ec;
   border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px;
   font-size: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
@@ -462,32 +467,40 @@ message-content.zs-cmd-mask code-block { display: none !important; }
 .zs-banner-new:hover { background: #4f46e5; }
 .zs-banner-x { background: rgba(255, 255, 255, 0.1); color: #e8e8ec; }
 .zs-banner-x:hover { background: rgba(255, 255, 255, 0.18); }
+/* Setup-tutorial link embedded in the bridge-lost banner (styled like a button,
+   sits in the actions row so it never overlaps the alert). */
+.zs-banner-video {
+  flex: 1; padding: 6px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  text-align: center; text-decoration: none; box-sizing: border-box;
+  background: rgba(129, 140, 248, 0.15); color: #c7d2fe;
+  border: 1px solid rgba(129, 140, 248, 0.4); transition: background 0.15s ease;
+}
+.zs-banner-video:hover { background: rgba(129, 140, 248, 0.28); }
 
-/* ── first-time onboarding card (bridge missing) ─────────────────── */
+/* ── first-time onboarding card (bridge missing; pinned top-right) ───────── */
 #zs-setup {
   position: fixed;
-  right: 18px;
+  top: 18px; right: 18px;
   width: 282px;
   padding: 14px 15px;
-  background: linear-gradient(160deg, rgba(28, 28, 38, 0.97), rgba(18, 18, 24, 0.97));
+  background: rgba(22, 22, 30, 0.98);
   color: #e8e8ec;
   border: 1px solid rgba(129, 140, 248, 0.45);
   border-radius: 14px;
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(10px);
   font-size: 12px;
   z-index: 2147483600;
-  animation: zs-gate-in 0.2s ease-out;
+  animation: zs-pop 0.2s ease-out;
 }
 #zs-setup-title { font-weight: 700; font-size: 13px; margin-bottom: 5px; }
 #zs-setup-sub { opacity: 0.78; font-size: 11px; line-height: 1.45; margin-bottom: 10px; }
 #zs-setup-video {
-  display: block; width: 100%; padding: 8px;
+  display: block; width: 100%; padding: 8px; box-sizing: border-box;
   background: rgba(129, 140, 248, 0.15); color: #c7d2fe;
   border: 1px solid rgba(129, 140, 248, 0.4); border-radius: 8px;
   font-size: 12px; font-weight: 700; text-align: center; text-decoration: none;
-  margin-bottom: 10px; box-sizing: border-box;
-  transition: background 0.15s ease;
+  margin-bottom: 10px; transition: background 0.15s ease;
 }
 #zs-setup-video:hover { background: rgba(129, 140, 248, 0.28); }
 .zs-setup-copy-row { display: flex; gap: 6px; margin-bottom: 10px; }
@@ -541,23 +554,11 @@ message-content.zs-cmd-mask code-block { display: none !important; }
 .zs-img-hdr button:hover { color: #e8e8ec; }
 .zs-img { display: block; width: 100%; padding: 8px 12px 0; box-sizing: border-box; border-radius: 8px; }
 
-/* ── drag-to-move ──────────────────────────────────────────────
-   The control panel can be dragged by its header to any of the four
-   screen corners (snapped + persisted by core/main.js). The title row
-   is the grab handle; interactive controls inside it keep their own
-   pointer. While dragging we kill transitions for a 1:1 follow. */
-#zs-title { cursor: move; }
-/* touch-action:none keeps the browser from claiming the pointer for a
-   scroll/gesture mid-drag (which would fire pointercancel and drop the drag). */
-#zs-panel { touch-action: none; }
-#zs-root.zs-dragging #zs-panel { transition: none; cursor: grabbing; backdrop-filter: none; will-change: left, top; }
-
 /* ══════════════════════════════════════════════════════════════
    LIGHT MODE
    Toggled by core/main.js adding `.zs-light` to <html> when the host
    page's effective background is light. Dark mode (the default) is
-   untouched. The in-conversation chips are the critical fix: their
-   light text on a near-transparent tint is invisible on a white page.
+   untouched.
    ══════════════════════════════════════════════════════════════ */
 /* in-conversation tool/result/sys chips */
 html.zs-light .zs-chip {
@@ -575,51 +576,66 @@ html.zs-light .zs-chip.run {
 }
 html.zs-light .zs-spin { border-color: rgba(0, 0, 0, 0.15); border-top-color: #6366f1; }
 
-/* control panel + setup card */
-html.zs-light #zs-panel,
-html.zs-light #zs-setup {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(244, 245, 250, 0.97));
+/* status bar + menu + setup card */
+html.zs-light #zs-bar {
+  background: rgba(255, 255, 255, 0.97);
   color: #1f2430;
-  border-color: rgba(99, 102, 241, 0.38);
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.03) inset;
+  border-color: rgba(99, 102, 241, 0.32);
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
 }
-html.zs-light #zs-title { color: #1f2430; }
-html.zs-light .zs-sub,
-html.zs-light #zs-hint { color: #4b5563; }
-html.zs-light #zs-hint b { color: #4f46e5; }
-
-/* header pill buttons (sites / gear) */
-html.zs-light #zs-sites,
-html.zs-light #zs-gear {
+html.zs-light #zs-brand { color: #1f2430; }
+html.zs-light #zs-state { color: #4b5563; }
+html.zs-light #zs-state b { color: #4f46e5; }
+html.zs-light #zs-state.zs-state-warn { color: #b91c1c; }
+html.zs-light #zs-bar.tone-active #zs-state b { color: #059669; }
+html.zs-light #zs-more {
   background: rgba(99, 102, 241, 0.10); color: #4f46e5;
   border-color: rgba(99, 102, 241, 0.30);
 }
-html.zs-light #zs-sites:hover,
-html.zs-light #zs-gear:hover { background: rgba(99, 102, 241, 0.18); }
-
-/* dropdown menus + settings */
-html.zs-light #zs-tip-menu,
-html.zs-light #zs-sites-menu,
-html.zs-light #zs-settings {
-  background: rgba(249, 250, 253, 0.98);
-  border-color: rgba(0, 0, 0, 0.10);
+html.zs-light #zs-more:hover { background: rgba(99, 102, 241, 0.18); }
+html.zs-light #zs-action[data-kind="new-session"],
+html.zs-light #zs-action[data-kind="new-chat"] {
+  background: rgba(0, 0, 0, 0.05); color: #374151; border-color: rgba(0, 0, 0, 0.10);
 }
+html.zs-light #zs-action[data-kind="new-session"]:hover,
+html.zs-light #zs-action[data-kind="new-chat"]:hover { background: rgba(0, 0, 0, 0.10); }
+html.zs-light #zs-action:disabled {
+  background: rgba(0, 0, 0, 0.05); color: rgba(0, 0, 0, 0.35); border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.zs-light #zs-menu,
+html.zs-light #zs-setup {
+  background: rgba(249, 250, 253, 0.99);
+  color: #1f2430;
+  border-color: rgba(99, 102, 241, 0.30);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+html.zs-light .zs-menu-sec + .zs-menu-sec { border-top-color: rgba(0, 0, 0, 0.08); }
+html.zs-light .zs-menu-note { color: #6b7280; }
 html.zs-light #zs-set-text {
   background: #ffffff; color: #1f2430; border-color: rgba(0, 0, 0, 0.16);
 }
-html.zs-light .zs-set-sub { color: #6b7280; }
-
-/* session-active row + "New session" button */
-html.zs-light .zs-active-txt { color: #059669; }
-html.zs-light .zs-active-txt:has(.zs-live-dot.idle) { color: #4b5563; }
-html.zs-light #zs-new {
-  background: rgba(0, 0, 0, 0.05); color: #374151; border-color: rgba(0, 0, 0, 0.10);
-}
-html.zs-light #zs-new:hover { background: rgba(0, 0, 0, 0.10); }
-
-/* setup card body */
 html.zs-light #zs-setup-sub,
 html.zs-light #zs-setup-steps { color: #4b5563; }
 html.zs-light #zs-setup-steps { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.07); }
 html.zs-light #zs-setup-dismiss { background: rgba(0, 0, 0, 0.05); color: #374151; }
 html.zs-light #zs-setup-dismiss:hover { background: rgba(0, 0, 0, 0.10); }
+
+/* Menu contents in light theme: the dark-theme text colors (pale lavender
+   #c7d2fe, pink #ff8fa3, green #34d399) wash out on the near-white menu, so
+   re-tint everything to darker, readable variants. */
+html.zs-light .zs-site-opt {
+  background: rgba(99, 102, 241, 0.10); color: #3730a3;
+  border-color: rgba(99, 102, 241, 0.28);
+}
+html.zs-light button.zs-site-opt:hover { background: rgba(99, 102, 241, 0.18); }
+html.zs-light .zs-site-here { background: rgba(0, 0, 0, 0.04); color: #6b7280; }
+html.zs-light .zs-menu-h { color: #1f2430; }
+html.zs-light #zs-set-save {
+  background: rgba(99, 102, 241, 0.14); color: #3730a3; border-color: rgba(99, 102, 241, 0.45);
+}
+html.zs-light #zs-set-save:hover { background: rgba(99, 102, 241, 0.24); }
+html.zs-light #zs-set-status { color: #059669; }
+html.zs-light .zs-tip-kofi { background: rgba(244, 63, 94, 0.12); color: #be123c; }
+html.zs-light .zs-tip-rbx { background: rgba(99, 102, 241, 0.10); color: #3730a3; }
+html.zs-light .zs-tip-sep { color: #6b7280; opacity: 0.9; }
