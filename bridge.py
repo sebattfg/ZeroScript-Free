@@ -86,6 +86,15 @@ class MCPClient:
             if self.is_alive():
                 return
             cmd = [self._resolve(self.command)] + [self._resolve(a) for a in self.args]
+            # A bare .py command (relative paths resolve against the bridge dir)
+            # is run with the SAME interpreter the bridge itself uses, so it works
+            # even on installs where only the `py` launcher exists (no `python`
+            # on PATH). This is how the Studio MCP launcher is wired by default.
+            if cmd[0].lower().endswith(".py"):
+                script = cmd[0]
+                if not os.path.isabs(script):
+                    script = os.path.join(HERE, script)
+                cmd = [sys.executable, script] + cmd[1:]
             # On Windows, npx/npm/yarn/pnpm/bunx are .cmd shims that Popen can't
             # launch directly (WinError 2). Run them through cmd.exe so any
             # node-based MCP server "just works" from config.json.

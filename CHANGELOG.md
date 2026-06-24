@@ -2,6 +2,17 @@
 
 All notable changes to ZeroScript Free are documented here.
 
+## [1.3.3] - 2026-06-24
+
+### Fixed
+- Bridge no longer depends on Roblox's `mcp.bat`, which hard-coded a single
+  Studio version path and broke (0 tools / "Bridge or Studio offline") once
+  Studio auto-updated and that version folder was removed. A new
+  `launch_studio_mcp.py` finds the newest installed `StudioMCP.exe` and launches
+  it directly.
+- `bridge.py` now runs a `.py` MCP command with the same Python interpreter as
+  the bridge, so it works on installs where only the `py` launcher exists.
+
 ## [1.0.0] - 2026-06-09
 
 ### Added

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "roblox": {
-      "command": "cmd.exe",
-      "args": ["/c", "%LOCALAPPDATA%\\Roblox\\mcp.bat"]
+      "command": "launch_studio_mcp.py",
+      "args": []
     }
   }
 }
