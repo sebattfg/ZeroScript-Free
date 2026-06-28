@@ -54,7 +54,7 @@ Double-click `start.bat` inside the extracted folder. A small window opens, that
 
 ### 4. Start a session
 
-Go to https://chat.deepseek.com (recommended), https://gemini.google.com, https://www.kimi.com, https://chat.z.ai, https://chat.qwen.ai or https://arena.ai and open a new chat. The ZeroScript panel appears at the bottom right. Click **Start session**. Type what you want to build.
+Go to https://chat.deepseek.com (recommended), https://gemini.google.com, https://www.kimi.com, https://chat.z.ai, https://chat.qwen.ai or https://arena.ai and open a new chat. The ZeroScript bar appears above the input box. Click **Start session**. Type what you want to build.
 
 > Only works on chat.deepseek.com, gemini.google.com, kimi.com, chat.z.ai, chat.qwen.ai and arena.ai - it will not work on any other site.
 > On Arena, keep the mode dropdown on **Direct** - ZeroScript blocks Start in Battle / Side-by-Side / Agent modes (it only drives a single Direct reply).
@@ -75,13 +75,13 @@ Go to https://chat.deepseek.com (recommended), https://gemini.google.com, https:
 
 ## New in 1.3.5
 
-- **New AI provider: Arena** (arena.ai) — a sixth free provider, and the first multi-model playground. Pick any model Arena offers and drive Roblox Studio with it. Use **Direct** mode: ZeroScript blocks Start in Battle / Side-by-Side / Agent modes and auto-commits any A/B comparison to candidate A so the agent always reads a single reply.
-- **Stop button fixes (Arena)** — clicking **■ Stop** now reliably halts generation even during the brief "Generating…" moment before the native stop button appears, and a tool chip can no longer keep spinning after a stop inside an A/B comparison.
+- **New AI provider: Arena** (arena.ai): a sixth free provider, and the first multi-model playground. Pick any model Arena offers and drive Roblox Studio with it. Use **Direct** mode: ZeroScript blocks Start in Battle / Side-by-Side / Agent modes and auto-commits any A/B comparison to candidate A so the agent always reads a single reply.
+- **Stop button fixes (Arena):** clicking **■ Stop** now reliably halts generation even during the brief "Generating..." moment before the native stop button appears, and a tool chip can no longer keep spinning after a stop inside an A/B comparison.
 
 ## New in 1.3.4
 
-- **New AI provider: Qwen** (chat.qwen.ai, Alibaba Cloud) — a fifth free provider joins the lineup. Uses a network tap (SSE stream) for reliable command extraction, immune to Monaco editor virtualisation.
-- **GLM send reliability fix** — in long conversations GLM could take a very long time to actually send a message (it was in the input but wouldn't go). The send logic now re-nudges Svelte up to 8 s until the button re-enables, fixing the delay.
+- **New AI provider: Qwen** (chat.qwen.ai, Alibaba Cloud): a fifth free provider joins the lineup. Uses a network tap (SSE stream) for reliable command extraction, immune to Monaco editor virtualisation.
+- **GLM send reliability fix:** in long conversations GLM could take a very long time to actually send a message (it was in the input but wouldn't go). The send logic now re-nudges Svelte up to 8 s until the button re-enables, fixing the delay.
 
 ## New in 1.3.0
 
