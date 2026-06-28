@@ -1,8 +1,8 @@
-# ZeroScript Free - AI Roblox Studio Agent (DeepSeek, Gemini, Kimi, GLM, Qwen)
+# ZeroScript Free - AI Roblox Studio Agent (DeepSeek, Gemini, Kimi, GLM, Qwen, Arena)
 
-Control Roblox Studio with AI, for free. ZeroScript turns a normal AI chat (DeepSeek, Google Gemini, Kimi, GLM, or Qwen) into an agent that builds and scripts your Roblox game for you: just describe what you want, and it reads/edits scripts, runs Luau, inspects the game tree, and generates assets directly in Roblox Studio. No API key, no terminal, no coding required.
+Control Roblox Studio with AI, for free. ZeroScript turns a normal AI chat (DeepSeek, Google Gemini, Kimi, GLM, Qwen, or Arena) into an agent that builds and scripts your Roblox game for you: just describe what you want, and it reads/edits scripts, runs Luau, inspects the game tree, and generates assets directly in Roblox Studio. No API key, no terminal, no coding required.
 
-It's a Chrome/Edge browser extension plus a small local bridge that connects the chat to Roblox Studio through the official MCP server. **DeepSeek is the recommended provider.** Gemini, Kimi, GLM and Qwen also work but can be less stable: Gemini tends to stop using the Roblox tools in long sessions, and Kimi sometimes reaches for its own native tools instead of the Roblox commands.
+It's a Chrome/Edge browser extension plus a small local bridge that connects the chat to Roblox Studio through the official MCP server. **DeepSeek is the recommended provider.** Gemini, Kimi, GLM, Qwen and Arena also work but can be less stable: Gemini tends to stop using the Roblox tools in long sessions, and Kimi sometimes reaches for its own native tools instead of the Roblox commands. On Arena, keep the mode dropdown on **Direct** (ZeroScript only supports Direct mode).
 
 ## Setup
 
@@ -18,7 +18,7 @@ It's a Chrome/Edge browser extension plus a small local bridge that connects the
 2. **Open Roblox Studio** and load a Place
 3. **Enable the MCP server in Roblox Studio** (first time only): click **Assistant AI** in the top bar, then **...** > **Manage MCP Servers** > **Enable Studio as MCP Server**
 4. **Run start.bat** - a small window opens, the Bridge is running
-5. **Go to https://chat.deepseek.com** (recommended), https://gemini.google.com, https://www.kimi.com, https://chat.z.ai, or https://chat.qwen.ai, open a new chat (only works on these exact addresses)
+5. **Go to https://chat.deepseek.com** (recommended), https://gemini.google.com, https://www.kimi.com, https://chat.z.ai, https://chat.qwen.ai, or https://arena.ai, open a new chat (only works on these exact addresses; on Arena use Direct mode)
 6. Click **Start session** in the ZeroScript panel
 7. Type what you want to build
 
@@ -43,6 +43,8 @@ providers/glm.js      same interface for GLM / Z.ai (Svelte DOM, code-block
 providers/qwen.js     same interface for Qwen / chat.qwen.ai (Vue DOM, network-tap
                       SSE stream, Monaco disposal guard)               (global ZSProvider)
 providers/qwen-net.js MAIN-world fetch tap for Qwen SSE stream        (injected by manifest)
+providers/arena.js    same interface for Arena / arena.ai (React DOM, multi-model
+                      playground, A/B-comparison auto-commit, Direct-mode gate) (global ZSProvider)
 background.js         WebSocket to the local bridge (provider-agnostic)
 ```
 

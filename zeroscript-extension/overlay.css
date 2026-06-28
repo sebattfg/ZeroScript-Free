@@ -360,6 +360,13 @@ message-content.zs-cmd-mask code-block { display: none !important; }
    so the provider marks IT with .zs-cmd-mask and this rule re-hides recreated
    Monaco code blocks (pre.qwen-markdown-code) with no flash. Inert elsewhere. */
 .qwen-chat-message-assistant.zs-cmd-mask pre.qwen-markdown-code { display: none !important; }
+/* Arena (arena.ai, React): React recreates the reply's rendered code subtree on
+   stream settle and on the next send, wiping any per-element .zs-tool-hide class.
+   The assistant turn <div> keeps its identity (the chip is anchored at item
+   level), so the provider marks IT with .zs-cmd-mask and this rule keeps every
+   recreated fenced-code wrapper (a .not-prose box holding a <pre>) hidden with no
+   flash. Inert elsewhere. */
+.zs-cmd-mask div.not-prose:has(pre) { display: none !important; }
 
 /* Qwen (Ant Design) renders its model / thinking-mode select popups at z-index
    1150 - far below #zs-root (2147483600) - so the ZeroScript bar covered the open

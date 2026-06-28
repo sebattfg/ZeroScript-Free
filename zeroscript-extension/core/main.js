@@ -63,6 +63,7 @@
     { name: "Kimi", url: "https://www.kimi.com/", emoji: "🌙" },
     { name: "GLM", url: "https://chat.z.ai/", emoji: "🅩" },
     { name: "Qwen", url: "https://chat.qwen.ai/", emoji: "🔮" },
+    { name: "Arena", url: "https://arena.ai/text/direct", emoji: "🏟️" },
   ];
 
   const A = {
@@ -768,6 +769,15 @@
     A.stopping = true;
     A.userStopped = true; // suppress auto-resume until the next user message
     markStoppedTurn();
+    // A tool's loading chip is only settled AFTER its `await runTool()` resolves
+    // (the if(A.stop) branch in agentLoop). A long-running call (e.g. a big
+    // multi_edit) leaves that await pending, so the chip would keep spinning for
+    // seconds after the user pressed Stop. Settle it to the stopped state right
+    // now; the loop's own settle on resolve is idempotent.
+    if (A.toolRunning && A.toolItem) {
+      A.toolItem.dataset.zStopped = "1";
+      decorate.toolBox(A.toolItem, A.toolName, "err", "stopped", true, "", ZS.toolCategory(A.toolName));
+    }
     ui.markStopping();    // instant feedback: button → "⏳ Stopping…", disabled
     P.stopGeneration();
     ui.toast("Stopping…");
@@ -1063,9 +1073,16 @@
       // 3. Assistant command turns → live loading while streaming, ✓ when done.
       if (P.isAssistantItem(item) && ZSParse.hasCommandShape(txt)) {
         // A turn the user manually halted (Stop / native stop) stays "stopped" -
-        // never let this sweep repaint it ✓ done just because generation ended.
-        // (The marker is set where we halt; cleared on a deliberate resume.)
-        const stopped = item.dataset.zStopped === "1";
+        // never let this sweep repaint it ✓ done (or worse, re-spin it) just
+        // because generation is still settling. The dataset marker is set where we
+        // halt, but on Arena the A/B carousel re-renders the turn node on every
+        // token, wiping the marker - so the spinner came back even after Stop. Also
+        // derive "stopped" from the userStopped latch (which survives node swaps)
+        // for the last turn; it's cleared on the next user message / deliberate
+        // resume, so a settled turn is never falsely frozen later.
+        const stopped =
+          item.dataset.zStopped === "1" ||
+          (A.userStopped && item === P.lastAssistant());
         const live = !stopped && item === P.lastAssistant() && (P.isGenerating() || A.running);
         const phase = stopped ? "err" : (live ? "run" : "done");
         const detail = stopped ? "stopped" : "";
@@ -1078,6 +1095,24 @@
         if (item.dataset.zphase !== phase || chipGone || rawVisible) {
           this.toolBox(item, ZSParse.toolNameFromText(txt), phase, detail, false);
         }
+        return;
+      }
+
+      // A user-halted turn whose CONTENT the site cleared. Arena's native stop
+      // (which our Stop button clicks) empties the turn's .prose and shows
+      // "Generation stopped" - so the command JSON vanishes, branch 3's command
+      // shape no longer matches, and the empty-text guard just below would bail
+      // every sweep, freezing a spinning "run" chip forever. Settle any lingering
+      // run chip to "stopped" right here, BEFORE that guard. Idempotent: skips
+      // once already at the err phase.
+      const haltedTurn =
+        item.dataset.zStopped === "1" ||
+        (A.userStopped && item === P.lastAssistant());
+      if (haltedTurn && P.isAssistantItem(item) && item.dataset.zphase !== "err"
+          && item.querySelector(".zs-chip")) {
+        const tx = item.querySelector(".zs-chip-tx");
+        const name = ZSParse.toolNameFromText(txt) || (tx && tx.textContent) || "tool";
+        this.toolBox(item, name, "err", "stopped", false);
         return;
       }
 
@@ -1095,6 +1130,21 @@
 
     sweep() {
       for (const it of P.allItems()) this.classify(it);
+      // Safety net for stopped turns whose chip lives OUTSIDE the enumerated
+      // message list. On Arena an A/B comparison renders each candidate as a
+      // slide in the carousel's OWN nested <ol>, not the main flex-col-reverse
+      // list - so allItems()/classify never see that node and a "run" spinner
+      // left by a Stop would spin forever. zStopped is only ever set on a
+      // deliberate halt, so settling any run-phase chip under such a node is
+      // safe wherever it lives. Idempotent: skips once at the err phase.
+      for (const chip of document.querySelectorAll(".zs-chip.run")) {
+        let item = chip.parentElement;
+        while (item && !(item.dataset && item.dataset.zStopped)) item = item.parentElement;
+        if (item && item.dataset.zphase !== "err") {
+          const tx = chip.querySelector(".zs-chip-tx");
+          this.toolBox(item, (tx && tx.textContent) || "tool", "err", "stopped", false);
+        }
+      }
     },
   };
 
@@ -1364,6 +1414,19 @@
         msg = `No agent here. Open a new chat to start one.`;
         label = "+ New chat"; kind = "new-chat";
       }
+      // Provider mode guard: some sites (e.g. Arena) only work in one chat mode.
+      // When the provider reports the current mode is unsupported, override the
+      // bar into a visible warning and disable Start until the user switches back.
+      // Skipped once a session is started/starting (the mode is fixed for the
+      // conversation by then). Reactive: renderBar runs on every sweep, so the
+      // warning appears/clears the instant the user changes the mode dropdown.
+      if (!A.started && !A.starting && P.modeWarning) {
+        const modeWarn = P.modeWarning();
+        if (modeWarn) {
+          toneClass = "warn"; warn = true; msg = modeWarn;
+          if (kind === "start") disabled = true;
+        }
+      }
       // Only touch the DOM when something actually changed. renderBar runs on
       // every sweep; rewriting stateEl.innerHTML each time recreated the spinner
       // <span> and RESTARTED its CSS animation, so "Starting…" appeared to stutter.
@@ -1584,6 +1647,32 @@
       barRaf = requestAnimationFrame(placeBar);
       if (!bar) return;
 
+      // Self-heal: a SPA navigation or a full re-render on the host (seen on Arena
+      // when the message frame jumps/teleports to the bottom) can detach our whole
+      // #zs-root from <html>, taking the bar with it - and nothing re-adds it, so
+      // the panel just vanishes. Re-append it whenever it's been detached; this
+      // rAF loop is resilient (its next frame is scheduled before any body code),
+      // so the panel reappears on the very next frame.
+      if (root && !root.isConnected) {
+        try { document.documentElement.appendChild(root); } catch {}
+      }
+
+      // While a bot-check challenge OR a blocking modal (login / consent) is on
+      // screen, get fully out of the way: the (often transparent) anchored bar is
+      // a real full-width element over the composer's top edge and would silently
+      // intercept clicks on the challenge's / modal's buttons (e.g. "Continue with
+      // Google" at sign-in). Hide the bar and drop the reserved padding strip; it
+      // reappears on the next frame once the overlay clears.
+      if (
+        (P.captchaPresent && P.captchaPresent()) ||
+        (P.overlayBlocking && P.overlayBlocking())
+      ) {
+        bar.style.display = "none";
+        clearAnchorPad();
+        if (menuEl) menuEl.hidden = true;
+        return;
+      }
+
       // Preferred: in-flow mount inside the composer (no overlap, full width).
       const mount = computeBarMount();
       if (mount) {
@@ -1688,7 +1777,7 @@
     function inputCover(on) {
       const ed = P.getEditor();
       if (!on) {
-        if (cover) cover.style.display = "none";
+        if (cover) { cover.style.display = "none"; cover.dataset.on = ""; }
         if (ed) ed.classList.remove("zs-typing");
         cancelAnimationFrame(coverRaf);
         return;
@@ -1701,10 +1790,26 @@
         cover.innerHTML = `<span class="zs-spin"></span><span>Working…</span>`;
         document.documentElement.appendChild(cover);
       }
+      cover.dataset.on = "1"; // intent flag: keep the place() loop alive while set
       cover.style.display = "flex";
       const place = () => {
+        // Loop runs while the cover is INTENDED on (dataset.on), not while it's
+        // visible - so we can hide it for an overlay and still restore it after.
+        if (!cover || cover.dataset.on !== "1") return;
         const e = P.getEditor();
-        if (!e || cover.style.display === "none") return;
+        if (!e) { coverRaf = requestAnimationFrame(place); return; }
+        // While a blocking modal (login / consent) or bot-check is up, hide the
+        // cover so it doesn't sit on top of the modal; it reappears once the
+        // overlay clears (the loop keeps running).
+        if (
+          (P.overlayBlocking && P.overlayBlocking()) ||
+          (P.captchaPresent && P.captchaPresent())
+        ) {
+          cover.style.display = "none";
+          coverRaf = requestAnimationFrame(place);
+          return;
+        }
+        cover.style.display = "flex";
         const r = e.getBoundingClientRect();
         // Optionally overshoot the editor box by PAD px on every side. Some
         // composers (Gemini's Quill) keep typed text near rounded corners, so a
