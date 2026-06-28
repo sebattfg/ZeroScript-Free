@@ -22,7 +22,7 @@ It's a Chrome/Edge browser extension plus a small local bridge that connects the
 6. Click **Start session** in the ZeroScript panel
 7. Type what you want to build
 
-📺 [Watch the setup tutorial](https://youtu.be/QaViHSqzy5Q)
+📺 [Watch the setup tutorial](https://youtu.be/kPKiZLZ9_Ps)
 
 ## Architecture (for contributors)
 

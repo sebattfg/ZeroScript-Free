@@ -24,7 +24,7 @@ The extension runs inside the chat page (DeepSeek, Gemini, Kimi, GLM, Qwen or Ar
 
 ## Setup
 
-> 📺 **Lost? Watch the [setup tutorial on YouTube](https://youtu.be/QaViHSqzy5Q) it covers every step below.**
+> 📺 **Lost? Watch the [setup tutorial on YouTube](https://youtu.be/kPKiZLZ9_Ps) it covers every step below.**
 
 ### 1. Download the zip and install the extension
 
@@ -46,7 +46,7 @@ Open Studio and load a Place, then enable MCP (first time only):
 - Click **Manage MCP Servers**
 - Click **Enable Studio as MCP Server**
 
-> Not sure where to find these options? The [video tutorial](https://youtu.be/QaViHSqzy5Q) shows exactly where to click.
+> Not sure where to find these options? The [video tutorial](https://youtu.be/kPKiZLZ9_Ps) shows exactly where to click.
 
 ### 3. Run the Bridge
 
@@ -61,7 +61,7 @@ Go to https://chat.deepseek.com (recommended), https://gemini.google.com, https:
 > Gemini and Kimi can be unstable (model behavior, not the extension): Gemini may stop using the Roblox tools after a while, and Kimi may use its own native tools instead. If the AI starts answering in plain text instead of acting, remind it to use the commands or start a new session.
 ### 5. Watch the setup tutorial
 
-[Watch the setup tutorial on YouTube](https://youtu.be/QaViHSqzy5Q)
+[Watch the setup tutorial on YouTube](https://youtu.be/kPKiZLZ9_Ps)
 
 ## What the AI can do
 
