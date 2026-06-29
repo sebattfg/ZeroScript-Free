@@ -32,23 +32,40 @@ def _candidate_roots():
 
 
 def find_studio_mcp():
-    """Return the path to the most recently modified StudioMCP.exe, or None."""
-    found = []
+    """Return the path to the StudioMCP.exe of the live Studio install, or None.
+
+    Roblox leaves "zombie" version folders behind after an update: they still
+    contain a StudioMCP.exe but no RobloxStudioBeta.exe (the actual Studio is
+    gone). Picking the newest StudioMCP.exe by mtime can land on such a zombie,
+    which launches fine but has no Studio to attach to -> the bridge sees 0
+    tools. So we only consider version folders that ALSO contain
+    RobloxStudioBeta.exe (a real, current Studio install), and prefer the
+    newest of those. We keep zombie StudioMCP.exe paths only as a last-resort
+    fallback if no paired install exists.
+    """
+    paired = []   # StudioMCP.exe sitting next to a RobloxStudioBeta.exe
+    orphans = []  # StudioMCP.exe with no Studio in the same version folder
     for root in _candidate_roots():
         if not os.path.isdir(root):
             continue
         try:
             for entry in os.listdir(root):
-                exe = os.path.join(root, entry, "StudioMCP.exe")
-                if os.path.isfile(exe):
-                    found.append(exe)
+                vdir = os.path.join(root, entry)
+                exe = os.path.join(vdir, "StudioMCP.exe")
+                if not os.path.isfile(exe):
+                    continue
+                if os.path.isfile(os.path.join(vdir, "RobloxStudioBeta.exe")):
+                    paired.append(exe)
+                else:
+                    orphans.append(exe)
         except OSError:
             continue
-    if not found:
+    candidates = paired or orphans
+    if not candidates:
         return None
-    # Newest by modification time = matches the current Studio install.
-    found.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-    return found[0]
+    # Newest by modification time among the real installs.
+    candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    return candidates[0]
 
 
 def main():

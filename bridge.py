@@ -33,29 +33,134 @@ except ImportError:
     print("[bridge] Missing dependency. Run:  pip install websockets")
     sys.exit(1)
 
-# Windows consoles often default to a legacy codepage (cp1252): printing the
-# "→"/"←" arrows in tool logs then raises UnicodeEncodeError INSIDE the WS
-# handler, which kills the connection. Force UTF-8 (best effort).
+# Windows consoles often default to a legacy codepage (cp1252): printing
+# non-ASCII text then raises UnicodeEncodeError INSIDE the WS handler, which
+# kills the connection. Force UTF-8 (best effort). We also keep all console
+# output strictly ASCII (no arrows / dots) so nothing garbles on a console that
+# stayed on a legacy codepage anyway.
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
 
+
+def _enable_ansi_colors():
+    """On Windows, turn on ANSI escape processing so color codes render instead
+    of printing as literal gibberish like "<ESC>[92m". Returns True on success."""
+    if sys.platform != "win32":
+        return True
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not k.GetConsoleMode(h, ctypes.byref(mode)):
+            return False
+        # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        return bool(k.SetConsoleMode(h, mode.value | 0x0004))
+    except Exception:
+        return False
+
+
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("ZS_BRIDGE_PORT", "17613"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "config.json")
 
-C = {
-    "reset": "\033[0m", "dim": "\033[2m", "gr": "\033[92m",
-    "yl": "\033[93m", "rd": "\033[91m", "cy": "\033[96m",
-}
+if _enable_ansi_colors():
+    C = {
+        "reset": "\033[0m", "dim": "\033[2m", "gr": "\033[92m",
+        "yl": "\033[93m", "rd": "\033[91m", "cy": "\033[96m",
+    }
+else:
+    # Console can't do ANSI: drop colors entirely rather than print raw escapes.
+    C = {k: "" for k in ("reset", "dim", "gr", "yl", "rd", "cy")}
 
 
 def log(msg, color="dim"):
     ts = time.strftime("%H:%M:%S")
     print(f"{C['dim']}{ts}{C['reset']} {C.get(color,'')}{msg}{C['reset']}", flush=True)
+
+
+# Roblox Studio exposes its built-in MCP server on this loopback port. StudioMCP
+# (and our bridge, via it) reaches Studio through it.
+STUDIO_MCP_PORT = 13469
+
+
+def _port_owner(port):
+    """(pid, name, path) of the process LISTENING on `port`, or None. Win32 only."""
+    if sys.platform != "win32":
+        return None
+    try:
+        out = subprocess.run(
+            ["netstat", "-ano", "-p", "TCP"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=8,
+        ).stdout
+    except Exception:
+        return None
+    pid = None
+    needle = f":{port} "
+    for line in out.splitlines():
+        if "LISTENING" in line and needle in line:
+            parts = line.split()
+            if parts and parts[-1].isdigit():
+                pid = parts[-1]
+                break
+    if not pid:
+        return None
+    name, path = "?", ""
+    try:
+        ps = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"$p=Get-Process -Id {pid} -ErrorAction SilentlyContinue; "
+             f"if($p){{$p.Name; $p.Path}}"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=8,
+        ).stdout.splitlines()
+        ps = [l.strip() for l in ps if l.strip()]
+        if ps:
+            name = ps[0]
+            path = ps[1] if len(ps) > 1 else ""
+    except Exception:
+        pass
+    return (pid, name, path)
+
+
+def check_studio_port():
+    """Warn (and optionally kill) a NON-Roblox process squatting Studio's MCP port.
+
+    A third-party tool (e.g. "ropilot") that binds 13469 before Studio does
+    hijacks the MCP channel: StudioMCP connects to IT instead of Studio, the
+    handshake succeeds but tools/list never answers -> the bridge sees 0 tools.
+    This is silent and brutal to diagnose, so we surface it up front.
+    """
+    owner = _port_owner(STUDIO_MCP_PORT)
+    if not owner:
+        return
+    pid, name, path = owner
+    # The legitimate holder is Studio itself / a Roblox helper: its path lives
+    # under a "...\Roblox\..." folder. Anything else is an intruder.
+    if "roblox" in (path or "").lower():
+        return
+    where = path or name
+    log(f"port {STUDIO_MCP_PORT} (Studio's MCP port) is held by a non-Roblox process:", "yl")
+    log(f"    {name} (pid {pid})  {where}", "yl")
+    log("    This will block Studio's tools (the bridge will see 0 tools).", "yl")
+    try:
+        ans = input("    Kill this process so Studio can use the port? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        ans = ""
+    if ans in ("y", "yes", "o", "oui"):
+        try:
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                           capture_output=True, text=True, timeout=8)
+            log(f"killed {name} (pid {pid}). Toggle Studio's MCP server off/on to claim the port.", "gr")
+        except Exception as e:
+            log(f"could not kill it: {e}", "rd")
+    else:
+        log("left it running. Close it yourself, then restart the bridge.", "yl")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -131,14 +236,26 @@ class MCPClient:
                 "clientInfo": {"name": "zeroscript-bridge", "version": "1.0"},
             }, timeout=30)
             self._notify("notifications/initialized")
-            self.refresh_tools()
+            # Some MCP servers (notably Roblox's StudioMCP) advertise 0 tools at
+            # the instant initialize returns, because they connect to their
+            # backend (the running Studio) a moment AFTER the stdio handshake.
+            # A single tools/list then caches an empty list forever. So if we
+            # get nothing, retry for a few seconds to let the backend attach.
+            # Short per-attempt timeout so the bridge never looks frozen if the
+            # server stays silent (e.g. Studio not open yet); ~12s total budget.
+            for _ in range(12):
+                if self.refresh_tools(timeout=3):
+                    break
+                if not self.is_alive():
+                    break
+                time.sleep(1.0)
             log(f"[{self.id}] ready  ({len(self.tools_cache)} tools)", "gr")
 
     def is_alive(self):
         return self.proc is not None and self.proc.poll() is None
 
     def restart(self):
-        log(f"[{self.id}] restarting…", "yl")
+        log(f"[{self.id}] restarting...", "yl")
         self.stop()
         time.sleep(0.4)
         self.start()
@@ -234,8 +351,8 @@ class MCPClient:
                 self.pending.pop(rid, None)
 
     # ── high-level ────────────────────────────────────────────────────────
-    def refresh_tools(self):
-        msg = self._request("tools/list", {}, timeout=20)
+    def refresh_tools(self, timeout=20):
+        msg = self._request("tools/list", {}, timeout=timeout)
         if msg and "result" in msg:
             self.tools_cache = msg["result"].get("tools", [])
         return self.tools_cache
@@ -268,7 +385,7 @@ class MCPClient:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  MANAGER  — aggregates every MCP server, routes by tool name.
+#  MANAGER  - aggregates every MCP server, routes by tool name.
 # ══════════════════════════════════════════════════════════════════════════
 class MCPManager:
     def __init__(self):
@@ -341,7 +458,7 @@ class MCPManager:
         with self.index_lock:
             entry = self.index.get(name)
         if entry is None:
-            # Maybe a freshly added tool — rebuild once and retry.
+            # Maybe a freshly added tool - rebuild once and retry.
             self.rebuild_index()
             with self.index_lock:
                 entry = self.index.get(name)
@@ -509,11 +626,11 @@ async def handler(ws):
                 name = msg.get("name", "")
                 args = msg.get("arguments") or {}
                 timeout = float(msg.get("timeout", 120000)) / 1000.0
-                log(f"→ tool  {name}({', '.join(args.keys())})", "cy")
+                log(f"-> tool  {name}({', '.join(args.keys())})", "cy")
                 res = await asyncio.to_thread(safe_call, name, args, timeout)
                 tag = "gr" if res.get("ok") else "rd"
                 summary = (res.get("text") or res.get("error") or "")[:80].replace("\n", " ")
-                log(f"← {name}: {summary}", tag)
+                log(f"<- {name}: {summary}", tag)
                 await ws.send(json.dumps({"type": "tool_result", "id": rid, **res}))
 
             elif mtype == "restart_mcp":
@@ -544,7 +661,8 @@ async def handler(ws):
 
 
 async def main():
-    print(f"\n{C['cy']}  ZeroScript Bridge{C['reset']}  {C['dim']}· Roblox Studio · ws://{HOST}:{PORT}{C['reset']}\n")
+    print(f"\n{C['cy']}  ZeroScript Bridge{C['reset']}  {C['dim']}- Roblox Studio - ws://{HOST}:{PORT}{C['reset']}\n")
+    await asyncio.to_thread(check_studio_port)
     mgr.load_config()
     try:
         await asyncio.to_thread(mgr.start_all)
@@ -555,7 +673,7 @@ async def main():
     log(f"ready {total} tools available ({len(mgr.clients)} MCP server(s))", "gr")
 
     async with websockets.serve(handler, HOST, PORT, ping_interval=20, ping_timeout=20, max_size=16 * 1024 * 1024):
-        log(f"listening on ws://{HOST}:{PORT}  — load the extension and open chat.deepseek.com", "gr")
+        log(f"listening on ws://{HOST}:{PORT}  - load the extension and open a supported AI chat", "gr")
         await asyncio.Future()  # run forever
 
 
@@ -563,6 +681,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        log("shutting down…", "yl")
+        log("shutting down...", "yl")
         for c in mgr.clients.values():
             c.stop()
