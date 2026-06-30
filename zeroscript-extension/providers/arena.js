@@ -23,8 +23,7 @@
 //    native setter + input event, then click the submit button.
 //  - The primary button carries aria-label "Send message" (idle) and is replaced
 //    by an aria-label "Stop generation" button for the WHOLE generation.
-//  - New chat: an <a href="/text/direct">. Conversation URL is /c/<uuid>; a
-//    fresh chat is /text/direct (no id yet).
+//  - Conversation URL is /c/<uuid>; a fresh chat is /text/direct (no id yet).
 // eslint-disable-next-line no-unused-vars
 const ZSProvider = (() => {
   "use strict";
@@ -612,24 +611,6 @@ const ZSProvider = (() => {
     } catch {}
   }
 
-  // ── New chat navigation ───────────────────────────────────────────────────
-  function findNewChatButton() {
-    for (const a of document.querySelectorAll('a[href="/text/direct"], a[href^="/text/"]')) {
-      if (a.offsetParent === null) continue;
-      return a;
-    }
-    return null;
-  }
-  async function openNewChat() {
-    const btn = findNewChatButton();
-    if (!btn) return false;
-    const prevPath = location.pathname;
-    try { btn.click(); } catch {}
-    await waitFor(() => location.pathname !== prevPath && chatIsEmpty() && !!getEditor(), 6000);
-    await waitFor(() => chatIsEmpty() && !!getEditor(), 2000);
-    return true;
-  }
-
   // /text/* = a fresh chat with no conversation id yet → "" (transient, never
   // persisted as "started"). A real conversation is /c/<uuid>.
   const conversationKey = () => (/^\/text\//.test(location.pathname) ? "" : location.pathname);
@@ -737,7 +718,7 @@ const ZSProvider = (() => {
     turnHalted, findContinueBtn, clickContinueBtn,
     scanError, isTooLongMsg, isBusyMsg,
     // actions
-    attachImages, clearAttachments, openNewChat, conversationKey,
+    attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,
   };
 })();

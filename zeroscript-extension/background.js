@@ -17,7 +17,7 @@ const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://gemini.google.com
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 15000;
-const HEARTBEAT_MS = 18000;
+const HEARTBEAT_MS = 10000;
 const REQUEST_TIMEOUT_DEFAULT = 130000; // a bit above the 120s tool timeout
 
 let ws = null;

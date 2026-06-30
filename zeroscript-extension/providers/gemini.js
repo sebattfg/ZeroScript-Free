@@ -22,8 +22,6 @@
 //    fonticon names are NOT - we anchor on fonticon.
 //  - No truncation "Continue" button; no per-turn "stopped" marker we can
 //    rely on → findContinueBtn/turnHalted return null/false.
-//  - New chat: an <a> carrying mat-icon "gemini_chat". Conversation URL is
-//    /app/<id>; a blank new chat is exactly /app.
 // eslint-disable-next-line no-unused-vars
 const ZSProvider = (() => {
   "use strict";
@@ -399,23 +397,6 @@ const ZSProvider = (() => {
     } catch {}
   }
 
-  // ── New chat navigation ───────────────────────────────────────────────────
-  function findNewChatButton() {
-    for (const a of document.querySelectorAll("a, button, [role='button']")) {
-      if (a.offsetParent === null) continue;
-      if (iconName(a) === "gemini_chat") return a;
-    }
-    return null;
-  }
-  async function openNewChat() {
-    const btn = findNewChatButton();
-    if (!btn) return false;
-    const prevPath = location.pathname;
-    try { btn.click(); } catch {}
-    await waitFor(() => location.pathname !== prevPath && chatIsEmpty() && !!getEditor(), 6000);
-    await waitFor(() => chatIsEmpty() && !!getEditor(), 2000);
-    return true;
-  }
 
   // /app without an id = a fresh chat whose conversation id is not assigned
   // yet → return "" (transient) so the core never persists it as "started".
@@ -523,6 +504,9 @@ const ZSProvider = (() => {
     // few px of bleed hides the slivers that would otherwise peek (see placeBar /
     // inputCover). Providers with a native <textarea> omit this (default 0).
     coverPad: 8,
+    // Gemini's .ql-editor rect sits a few px below the visual input-box centre,
+    // so nudge the "Agent is working…" cover up to read as vertically centred.
+    coverOffsetY: -6,
     // Gemini's turn elements are semantic and never virtualized away, so
     // assistantCount() reliably increases for every new reply. The core's
     // watcher uses this to refuse finalizing before this send's reply turn
@@ -547,7 +531,7 @@ const ZSProvider = (() => {
     turnHalted, findContinueBtn, clickContinueBtn,
     scanError, isTooLongMsg, isBusyMsg,
     // actions
-    attachImages, clearAttachments, openNewChat, conversationKey,
+    attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,
   };
 })();

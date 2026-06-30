@@ -75,7 +75,6 @@ const ZSProvider = (() => {
     expertMode: /expert|专家|专业/i,
     deepThink: /pensée profonde|pensee profonde|profonde|réflexion|reflexion|deep ?think|深度思考|r1/i,
     searchMode: /recherche intelligente|smart search|search|web|搜索/i,
-    newChat: /^(nouvelle conversation|new chat|new conversation|开启新对话|新对话)$/i,
   };
 
   // Completion-detection windows, calibrated on DeepSeek's DeepThink behaviour.
@@ -587,36 +586,6 @@ const ZSProvider = (() => {
     return await waitFor(() => attachThumbs().length >= want, 15000);
   }
 
-  // ── New chat navigation ───────────────────────────────────────────────────
-  // DeepSeek's "New chat" button (top of the sidebar): the topmost, smallest
-  // element whose WHOLE text is the new-chat label, with an icon and NO href.
-  function findNewChatButton() {
-    let best = null, bestArea = Infinity;
-    for (const e of document.querySelectorAll('a,div,button,[role="button"]')) {
-      const t = (e.textContent || "").trim();
-      if (!RE.newChat.test(t)) continue;
-      if (e.getAttribute("href")) continue;     // skip sidebar history links
-      if (!e.querySelector("svg")) continue;     // the button carries an icon
-      const r = e.getBoundingClientRect();
-      if (r.top > 300 || r.width === 0) continue; // sidebar header only, visible
-      const area = r.width * r.height;
-      if (area < bestArea) { best = e; bestArea = area; } // tightest = the button itself
-    }
-    return best;
-  }
-
-  // Navigate to a fresh blank conversation. Returns true if navigation happened.
-  async function openNewChat() {
-    const btn = findNewChatButton();
-    if (!btn) return false;
-    const prevPath = location.pathname;
-    try { btn.click(); } catch {}
-    // Wait for the SPA route change to a blank conversation.
-    await waitFor(() => location.pathname !== prevPath && chatIsEmpty() && !!getEditor(), 6000);
-    await waitFor(() => chatIsEmpty() && !!getEditor(), 2000);
-    return true;
-  }
-
   // Stable identity of the current conversation (used to persist "started").
   // The root path = a fresh chat with no id yet → "" (transient, never persisted).
   const conversationKey = () => (location.pathname === "/" ? "" : location.pathname);
@@ -756,7 +725,7 @@ const ZSProvider = (() => {
     turnHalted, findContinueBtn, clickContinueBtn,
     scanError, isTooLongMsg, isBusyMsg,
     // actions
-    attachImages, clearAttachments, openNewChat, conversationKey,
+    attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,
   };
 })();

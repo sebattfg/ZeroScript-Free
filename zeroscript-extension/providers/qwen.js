@@ -25,9 +25,6 @@
 //  - Generating: `button.stop-button` replaces send (may briefly carry class
 //    `disabled` in the first frame of generation; clicking it still works). The
 //    stop button is present for the WHOLE generation (thinking + answer).
-//  - New chat: `.sidebar-entry-fixed-list-content` whose child
-//    `.sidebar-entry-fixed-list-text` reads "New Chat". Sidebar may be collapsed;
-//    the button is still in the DOM and clickable.
 //  - Conversation URL: /c/<uuid>. Fresh chat: /.
 //  - Bar: anchored via barAnchor() returning `.message-input-wrapper` (the editor
 //    is not inside `.chat-message-input-fixed-container`, so closest() falls
@@ -591,27 +588,6 @@ const ZSProvider = (() => {
     } catch {}
   }
 
-  // ── New chat navigation ───────────────────────────────────────────────────
-  // The sidebar "New Chat" item is `.sidebar-entry-fixed-list-content` whose
-  // child `.sidebar-entry-fixed-list-text` reads "New Chat". Works whether the
-  // sidebar is expanded or collapsed (the element stays in the DOM).
-  function findNewChatButton() {
-    for (const el of document.querySelectorAll(".sidebar-entry-fixed-list-content")) {
-      const textEl = el.querySelector(".sidebar-entry-fixed-list-text");
-      if (textEl && /new.{0,5}chat/i.test(textEl.textContent || "")) return el;
-    }
-    return null;
-  }
-  async function openNewChat() {
-    const btn = findNewChatButton();
-    if (!btn) return false;
-    const prevPath = location.pathname;
-    try { btn.click(); } catch {}
-    await waitFor(() => location.pathname !== prevPath && chatIsEmpty() && !!getEditor(), 6000);
-    await waitFor(() => chatIsEmpty() && !!getEditor(), 2000);
-    return true;
-  }
-
   const conversationKey = () =>
     /^\/?$/.test(location.pathname) ? "" : location.pathname;
 
@@ -783,7 +759,7 @@ const ZSProvider = (() => {
     turnHalted, findContinueBtn, clickContinueBtn,
     scanError, isTooLongMsg, isBusyMsg,
     // actions
-    attachImages, clearAttachments, openNewChat, conversationKey,
+    attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,
   };
 })();

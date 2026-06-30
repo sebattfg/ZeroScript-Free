@@ -138,12 +138,12 @@ def check_studio_port():
     """
     owner = _port_owner(STUDIO_MCP_PORT)
     if not owner:
-        return
+        return False
     pid, name, path = owner
     # The legitimate holder is Studio itself / a Roblox helper: its path lives
     # under a "...\Roblox\..." folder. Anything else is an intruder.
     if "roblox" in (path or "").lower():
-        return
+        return False
     where = path or name
     log(f"port {STUDIO_MCP_PORT} (Studio's MCP port) is held by a non-Roblox process:", "yl")
     log(f"    {name} (pid {pid})  {where}", "yl")
@@ -156,11 +156,13 @@ def check_studio_port():
         try:
             subprocess.run(["taskkill", "/F", "/PID", str(pid)],
                            capture_output=True, text=True, timeout=8)
-            log(f"killed {name} (pid {pid}). Toggle Studio's MCP server off/on to claim the port.", "gr")
+            log(f"killed {name} (pid {pid}). Studio can use the port now.", "cy")
+            return True  # a squatter WAS killed -> Studio must reclaim the port
         except Exception as e:
             log(f"could not kill it: {e}", "rd")
     else:
         log("left it running. Close it yourself, then restart the bridge.", "yl")
+    return False
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -249,7 +251,7 @@ class MCPClient:
                 if not self.is_alive():
                     break
                 time.sleep(1.0)
-            log(f"[{self.id}] ready  ({len(self.tools_cache)} tools)", "gr")
+            log(f"[{self.id}] MCP server up  ({len(self.tools_cache)} tools advertised)", "cy")
 
     def is_alive(self):
         return self.proc is not None and self.proc.poll() is None
@@ -660,9 +662,30 @@ async def handler(ws):
         log(f"extension disconnected  [{len(clients)} client(s)]", "yl")
 
 
+async def studio_watch(initial_app):
+    """Poll Studio attachment and log transitions, so the terminal confirms in
+    GREEN the moment Studio attaches (e.g. after the user toggles its MCP server)
+    and warns again if it later drops. Best-effort; never raises."""
+    prev = initial_app
+    while True:
+        await asyncio.sleep(4)
+        try:
+            app = (await asyncio.to_thread(probe_studio))["app"]
+        except Exception:
+            continue
+        if app is None or app == prev:
+            continue
+        if app is True:
+            total = len(mgr.list_tools())
+            log(f"Roblox Studio connected - {total} tools ready.", "gr")
+        else:  # app is False
+            log("Roblox Studio disconnected - re-enable its MCP server (toggle off/on).", "yl")
+        prev = app
+
+
 async def main():
     print(f"\n{C['cy']}  ZeroScript Bridge{C['reset']}  {C['dim']}- Roblox Studio - ws://{HOST}:{PORT}{C['reset']}\n")
-    await asyncio.to_thread(check_studio_port)
+    killed_squatter = await asyncio.to_thread(check_studio_port)
     mgr.load_config()
     try:
         await asyncio.to_thread(mgr.start_all)
@@ -670,10 +693,37 @@ async def main():
         log(f"server startup error: {e}", "rd")
         log("The bridge will keep running; it retries on the first tool call.", "yl")
     total = len(mgr.list_tools())
-    log(f"ready {total} tools available ({len(mgr.clients)} MCP server(s))", "gr")
+
+    # A tool count alone only proves StudioMCP (the proxy) is up - it advertises
+    # its catalogue even with NO Studio attached. The authoritative "a Studio is
+    # actually connected" signal is the list_roblox_studios probe. So we probe
+    # FIRST and only show the green "ready" line when Studio is really attached;
+    # otherwise we show just the corrective step (no misleading green success).
+    _st = await asyncio.to_thread(probe_studio) if total > 0 else {"app": None}
+    if total > 0 and _st["app"] is False:
+        log("    -------------------------------------------------------------", "yl")
+        log(f"    {total} tools loaded, but NO Roblox Studio is connected yet.", "yl")
+        if killed_squatter:
+            # A squatter was holding the port; Studio could not bind and may have
+            # given up. It must reclaim the port now -> toggle is the reliable fix.
+            log("    Another app was blocking the port (now killed). To finish:", "yl")
+            log("    in Roblox Studio, turn the MCP server OFF then ON again", "yl")
+            log("    (Studio AI / MCP setting).", "yl")
+        else:
+            # No squatter: Studio is simply closed, or its MCP option is off.
+            log("    Open Roblox Studio (with a place) and enable its MCP server", "yl")
+            log("    (Studio AI / MCP setting), if it is not already on.", "yl")
+        log("    It can take up to ~10s; the extension's status dot turns green", "yl")
+        log("    once Studio is attached.", "yl")
+        log("    -------------------------------------------------------------", "yl")
+    elif _st["app"] is True:
+        log(f"ready {total} tools available - Roblox Studio connected", "gr")
+    else:
+        log(f"ready {total} tools available ({len(mgr.clients)} MCP server(s))", "gr")
 
     async with websockets.serve(handler, HOST, PORT, ping_interval=20, ping_timeout=20, max_size=16 * 1024 * 1024):
-        log(f"listening on ws://{HOST}:{PORT}  - load the extension and open a supported AI chat", "gr")
+        log(f"listening on ws://{HOST}:{PORT}  - load the extension and open a supported AI chat", "cy")
+        asyncio.create_task(studio_watch(_st["app"]))
         await asyncio.Future()  # run forever
 
 

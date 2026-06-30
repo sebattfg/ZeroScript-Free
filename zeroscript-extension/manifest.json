@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZeroScript Free × Roblox Studio Agent",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "description": "Turn DeepSeek, Gemini, Kimi, GLM, Qwen or Arena into a Roblox Studio agent that drives Studio through a local bridge.",
   "permissions": ["storage"],
   "host_permissions": [

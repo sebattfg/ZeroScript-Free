@@ -23,8 +23,7 @@
 //    stream (thinking included) - no indicatorless reasoning phase like DeepSeek.
 //  - Fenced code = an atomic wrapper `div[class*="rounded-xl"]` carrying a
 //    `.copy-code-button`; the command JSON survives in textContent.
-//  - New chat: `#new-chat-button` (top bar) / `#sidebar-new-chat-button`.
-//    Conversation URL is /c/<uuid>; a fresh chat is exactly "/".
+//  - Conversation URL is /c/<uuid>; a fresh chat is exactly "/".
 // eslint-disable-next-line no-unused-vars
 const ZSProvider = (() => {
   "use strict";
@@ -43,7 +42,6 @@ const ZSProvider = (() => {
     copyCodeBtn: ".copy-code-button",
     codeWrap: 'div[class*="rounded-xl"]',
     errorSurfaces: '[role="alert"],[class*="toast"],[class*="error"],[class*="alert"],[class*="modal"]',
-    newChat: "#new-chat-button, #sidebar-new-chat-button, .navNewChat",
   };
 
   const RE = {
@@ -396,24 +394,6 @@ const ZSProvider = (() => {
     } catch {}
   }
 
-  // ── New chat navigation ───────────────────────────────────────────────────
-  function findNewChatButton() {
-    for (const b of document.querySelectorAll(S.newChat)) {
-      if (b.offsetParent === null) continue;
-      return b;
-    }
-    return null;
-  }
-  async function openNewChat() {
-    const btn = findNewChatButton();
-    if (!btn) return false;
-    const prevPath = location.pathname;
-    try { btn.click(); } catch {}
-    await waitFor(() => location.pathname !== prevPath && chatIsEmpty() && !!getEditor(), 6000);
-    await waitFor(() => chatIsEmpty() && !!getEditor(), 2000);
-    return true;
-  }
-
   // /c/<uuid> = a real conversation. "/" = a fresh chat with no id yet → ""
   // (transient) so the core never persists it as "started".
   const conversationKey = () => (/^\/?$/.test(location.pathname) ? "" : location.pathname);
@@ -535,7 +515,7 @@ const ZSProvider = (() => {
     turnHalted, findContinueBtn, clickContinueBtn,
     scanError, isTooLongMsg, isBusyMsg,
     // actions
-    attachImages, clearAttachments, openNewChat, conversationKey,
+    attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,
   };
 })();

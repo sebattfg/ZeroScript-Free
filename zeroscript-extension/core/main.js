@@ -183,7 +183,10 @@
       if (messageSent) diag("send.cleared", { tries });
       return base;
     } finally {
-      ui.inputCover(false);
+      // During Starting Up / the agent loop, the bootstrap or loop owns the cover
+      // for the whole phase, so don't lift it here between an injection and the
+      // next waitForResponse - it stays up until the loop / bootstrap ends.
+      if (!A.starting && !A.running) ui.inputCover(false);
       setTimeout(() => (A.injecting = false), 400);
       // Camouflage the turn we just injected without waiting on the rAF observer
       // (paused in a background tab). A couple of nudges cover the render.
@@ -626,6 +629,7 @@
     const REMIND_TOOLS_EVERY = 20;
     ui.showStop(true);
     P.setInputLock(true); // prevent user from typing while the agent is active
+    ui.inputCover(true);  // keep the "Agent is working" cover up for the WHOLE loop
     diag("loop.start", { base });
     try {
       while (!A.stop) {
@@ -635,7 +639,7 @@
 
         if (res.kind === "context_limit") {
           ui.banner("limit", `${P.displayName} reached its context limit`,
-            (res.detail || "") + "  -  click “New session” to start fresh.");
+            (res.detail || "") + "  -  open a new chat to start fresh.");
           break;
         }
         if (res.kind === "too_long") {
@@ -749,6 +753,7 @@
       A.toolRunning = false;
       A.loopKey = null;
       ui.showStop(false);
+      ui.inputCover(false); // lift the "Agent is working" cover when the loop ends
       P.setInputLock(false); // always unlock, even on error or stop
       diag("loop.end");
     }
@@ -786,12 +791,11 @@
   // ════════════════════════════════════════════════════════════════════════
   //  SESSION BOOTSTRAP  ("Starting Up" animated chip, shown in the conversation)
   // ════════════════════════════════════════════════════════════════════════
-  async function startSession(opts) {
+  async function startSession() {
     if (A.running || A.starting) return;
     // "Start session" is allowed ONLY on a blank conversation. Opening an
-    // EXISTING conversation must never trigger the bootstrap. The explicit
-    // "New session" recovery button passes force:true.
-    if (!P.chatIsEmpty() && !(opts && opts.force) && !A.started) {
+    // EXISTING conversation must never trigger the bootstrap.
+    if (!P.chatIsEmpty() && !A.started) {
       ui.toast("Open a new, empty conversation to start a session.");
       return;
     }
@@ -810,6 +814,7 @@
     ui.setStarting(true);
     ui.updateStartGate(); // refresh the bar into its "starting" state
     P.setInputLock(true); // block user input during bootstrap
+    ui.inputCover(true);  // cover the composer ("Working…") for the WHOLE Starting Up
     try {
       await ensureTools();
       if (!alive()) return;
@@ -862,26 +867,11 @@
         A.starting = false;
         A.startingKey = null;
         ui.setStarting(false);
+        ui.inputCover(false); // lift the Starting Up composer cover
         P.setInputLock(false); // always unlock after bootstrap
         decorate.sweep();
       }
     }
-  }
-
-  // Explicit "New session": open a FRESH conversation and bootstrap it there -
-  // rather than re-injecting the system prompt into the current chat. Falls
-  // back to an in-place start only if navigation fails.
-  async function newSessionClick() {
-    if (A.running || A.starting) {
-      ui.toast("Please wait - ZeroScript is busy.");
-      return;
-    }
-    if (await P.openNewChat()) {
-      // Fresh conversation → reset session state before bootstrapping it.
-      A.started = false;
-      ui.setStarted(false);
-    }
-    startSession({ force: true });
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1162,7 +1152,7 @@
       root.id = "zs-root";
       // One consolidated status bar, anchored just above the site's composer
       // (positioned every frame by placeBar). It carries everything: live status,
-      // the primary action (Start / New session / New chat / Stop) and a "more"
+      // the primary action (Start / Stop) and a "more"
       // menu (other AI sites, custom prompt, support, Discord). No floating panel,
       // no overlay on the input - the composer stays fully usable for plain chat.
       root.innerHTML = `
@@ -1221,7 +1211,6 @@
     function onActionClick() {
       const kind = actionBtn.dataset.kind;
       if (kind === "start") startSession();
-      else if (kind === "new-session" || kind === "new-chat") newSessionClick();
     }
 
     // ── Custom prompt (persisted) ───────────────────────────────────────────
@@ -1362,9 +1351,9 @@
     // The single source of truth for the bar's content. Decides the dot tone,
     // the state line and the primary action from the live state:
     //  • starting        → spinner, "Starting the Roblox agent…"
-    //  • session active   → live dot, "Agent active · N tools", action = New session
+    //  • session active   → live dot, "Agent active · N tools" (no action)
     //  • fresh blank chat → "Standby…" (or a bridge/Studio warning), action = Start
-    //  • existing chat    → "No agent in this chat", action = New chat (informs only)
+    //  • existing chat    → "No agent in this chat" (informs only, no action)
     function renderBar() {
       if (!bar) return;
       // indicator = an optional leading dot/spinner; msg = the wrappable text.
@@ -1384,7 +1373,6 @@
         // No inline dot here: the leading status dot already shows green, two dots
         // side by side looked cluttered. The green "Agent active" text carries it.
         msg = `<b>Agent active</b>${tools ? ` · ${tools} tools` : ""}`;
-        label = "+ New chat"; kind = "new-session";
       } else if (P.isFreshChat() || P.chatIsEmpty()) {
         // Treat ANY empty chat (no turns yet) as the standby/start case - not just
         // the strict fresh-chat match. isFreshChat() also requires an exact root
@@ -1412,7 +1400,6 @@
       } else {
         toneClass = "noagent";
         msg = `No agent here. Open a new chat to start one.`;
-        label = "+ New chat"; kind = "new-chat";
       }
       // Provider mode guard: some sites (e.g. Arena) only work in one chat mode.
       // When the provider reports the current mode is unsupported, override the
@@ -1445,7 +1432,9 @@
       actionBtn.dataset.kind = kind;
       actionBtn.disabled = disabled;
       // The Stop button replaces the action button while the agent is busy.
-      actionBtn.style.display = busy ? "none" : "";
+      // With no kind (e.g. agent active, or an existing chat) there's no primary
+      // action to offer, so the button is hidden entirely.
+      actionBtn.style.display = (busy || !kind) ? "none" : "";
     }
     let lastBarSig = "";
 
@@ -1787,7 +1776,7 @@
       if (!cover) {
         cover = document.createElement("div");
         cover.id = "zs-input-cover";
-        cover.innerHTML = `<span class="zs-spin"></span><span>Working…</span>`;
+        cover.innerHTML = `<span>Agent is working…</span>`;
         document.documentElement.appendChild(cover);
       }
       cover.dataset.on = "1"; // intent flag: keep the place() loop alive while set
@@ -1818,8 +1807,12 @@
         // (DeepSeek) needs none - overshooting there just makes the cover overflow
         // the composer, so it defaults to 0.
         const PAD = P.coverPad || 0;
+        // Optional vertical nudge: some composers (Gemini's Quill) report an
+        // editor rect that sits a few px below the visual input box centre, so
+        // the centred "Agent is working…" text looks low. A provider can shift it.
+        const OFFY = P.coverOffsetY || 0;
         cover.style.left = (r.left - PAD) + "px";
-        cover.style.top = (r.top - PAD) + "px";
+        cover.style.top = (r.top - PAD + OFFY) + "px";
         cover.style.width = (r.width + PAD * 2) + "px";
         cover.style.height = (Math.max(r.height, 36) + PAD * 2) + "px";
         cover.style.background = opaqueBg(e);
@@ -1842,13 +1835,11 @@
       b.className = `zs-banner ${kind}`;
       b.innerHTML = `<div class="zs-banner-t"></div><div class="zs-banner-m"></div>
         <div class="zs-banner-acts">
-          <button class="zs-banner-new">⟳ New session</button>
           <button class="zs-banner-x">Close</button>
         </div>`;
       b.querySelector(".zs-banner-t").textContent = title;
       b.querySelector(".zs-banner-m").textContent = msg;
       b.querySelector(".zs-banner-x").addEventListener("click", () => b.remove());
-      b.querySelector(".zs-banner-new").addEventListener("click", () => { b.remove(); newSessionClick(); });
       root.appendChild(b);
     }
 

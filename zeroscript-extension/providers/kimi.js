@@ -23,8 +23,7 @@
 //  - Fenced code = an atomic `.segment-code` wrapper (a `.syntax-highlighter`
 //    holding a `<pre class="language-…">`); textContent preserves newlines (no
 //    CodeMirror virtualization), so the command JSON survives intact.
-//  - New chat: a `.sidebar-new-chat` element. Conversation URL is /chat/<id>;
-//    a fresh chat is exactly "/".
+//  - Conversation URL is /chat/<id>; a fresh chat is exactly "/".
 // eslint-disable-next-line no-unused-vars
 const ZSProvider = (() => {
   "use strict";
@@ -44,9 +43,6 @@ const ZSProvider = (() => {
     composer: ".chat-box",
     sendBtn: ".send-button-container",
     codeWrap: ".segment-code",
-    // New-chat control: the wrapper is `.sidebar-new-chat`, but the real router
-    // link is the `<a class="new-chat-btn">` inside it - see findNewChatButton().
-    newChat: ".sidebar-new-chat",
     errorSurfaces: '[role="alert"],[class*="toast"],[class*="error"],[class*="alert"],[class*="notification"]',
   };
 
@@ -429,30 +425,6 @@ const ZSProvider = (() => {
     } catch {}
   }
 
-  // ── New chat navigation ───────────────────────────────────────────────────
-  // Prefer the real router link `a.new-chat-btn` (clicking its wrapper DIV
-  // `.sidebar-new-chat` does NOT trigger the SPA route change). querySelectorAll
-  // returns DOM order (the wrapper, an ancestor, would come first), so try the
-  // anchor selectors in priority order and only fall back to the wrapper.
-  function findNewChatButton() {
-    for (const sel of [".sidebar-new-chat .new-chat-btn", "a.new-chat-btn", ".sidebar-new-chat"]) {
-      for (const b of document.querySelectorAll(sel)) {
-        if (b.offsetParent === null) continue;
-        return b;
-      }
-    }
-    return null;
-  }
-  async function openNewChat() {
-    const btn = findNewChatButton();
-    if (!btn) return false;
-    const prevPath = location.pathname;
-    try { btn.click(); } catch {}
-    await waitFor(() => location.pathname !== prevPath && chatIsEmpty() && !!getEditor(), 6000);
-    await waitFor(() => chatIsEmpty() && !!getEditor(), 2000);
-    return true;
-  }
-
   // /chat/<id> = a real conversation. "/" = a fresh chat with no id yet → ""
   // (transient) so the core never persists it as "started".
   const conversationKey = () => (/^\/?$/.test(location.pathname) ? "" : location.pathname);
@@ -562,7 +534,7 @@ const ZSProvider = (() => {
     turnHalted, findContinueBtn, clickContinueBtn,
     scanError, isTooLongMsg, isBusyMsg,
     // actions
-    attachImages, clearAttachments, openNewChat, conversationKey,
+    attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,
   };
 })();

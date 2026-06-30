@@ -22,6 +22,24 @@ REM cannot run pip and silently fails.
 set "PY=python"
 call :validate_py && goto :found
 
+REM Last resort: scan the standard install folders directly. Covers the common
+REM case where Python was installed WITHOUT "Add to PATH" and without the py
+REM launcher, so neither "py" nor "python" resolves. Newest version first.
+for %%R in (
+    "%LOCALAPPDATA%\Programs\Python"
+    "%ProgramFiles%"
+    "%ProgramFiles(x86)%"
+) do (
+    if exist "%%~R" (
+        for /f "delims=" %%D in ('dir /b /ad /o-n "%%~R\Python3*" 2^>nul') do (
+            if exist "%%~R\%%D\python.exe" (
+                set PY="%%~R\%%D\python.exe"
+                call :validate_py && goto :found
+            )
+        )
+    )
+)
+
 set "PY="
 goto :need_install
 
@@ -79,6 +97,15 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :17613 ^| findstr LISTENING 2
     taskkill /F /PID %%a >nul 2>nul
 )
 echo.
+echo  ############################################################
+echo  ##                                                        ##
+echo  ##   KEEP THIS TERMINAL OPEN - DO NOT CLOSE THIS WINDOW   ##
+echo  ##                                                        ##
+echo  ##   ZeroScript stops working if you close it. Just       ##
+echo  ##   minimize this window and leave it running.           ##
+echo  ##                                                        ##
+echo  ############################################################
+echo.
 %PY% "%~dp0bridge.py"
 
 echo.
@@ -87,9 +114,11 @@ pause >nul
 exit /b 0
 
 REM --- Subroutine: verify %PY% is a real, usable Python ------------------------
-REM Returns 0 only if the interpreter runs AND has a working pip. This rejects
-REM the Microsoft Store stub (WindowsApps\python.exe), which exits non-zero / has
-REM no pip, so we never select an interpreter that cannot install packages.
+REM Returns 0 only if the interpreter runs, has a working pip, AND is Python 3.9
+REM or newer. The pip check rejects the Microsoft Store stub (WindowsApps\
+REM python.exe). The version check rejects old interpreters (e.g. 3.7/3.8) that
+REM lack asyncio.to_thread, which the bridge requires.
 :validate_py
-%PY% -m pip --version >nul 2>nul
+%PY% -m pip --version >nul 2>nul || exit /b 1
+%PY% -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)" >nul 2>nul
 exit /b %errorlevel%

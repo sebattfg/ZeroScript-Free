@@ -145,7 +145,7 @@ html.zs-light #zs-bar.zs-bar-anchored {
 }
 .zs-live-dot.idle { background: #9ca3af; animation: none; box-shadow: none; }
 
-/* primary action button (Start / New session / New chat) */
+/* primary action button (Start) */
 #zs-action {
   flex: none;
   padding: 7px 13px;
@@ -158,13 +158,6 @@ html.zs-light #zs-bar.zs-bar-anchored {
   box-shadow: 0 2px 12px rgba(99, 102, 241, 0.45);
 }
 #zs-action[data-kind="start"]:hover { filter: brightness(1.08); }
-#zs-action[data-kind="new-session"],
-#zs-action[data-kind="new-chat"] {
-  background: rgba(255, 255, 255, 0.08); color: #cbd0e0;
-  border-color: rgba(255, 255, 255, 0.14); font-weight: 600;
-}
-#zs-action[data-kind="new-session"]:hover,
-#zs-action[data-kind="new-chat"]:hover { background: rgba(255, 255, 255, 0.16); }
 #zs-action:disabled {
   background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.45);
   border-color: rgba(255, 255, 255, 0.10); box-shadow: none; cursor: not-allowed;
@@ -482,8 +475,6 @@ message-content.zs-cmd-mask code-block { display: none !important; }
 .zs-banner-acts button {
   flex: 1; padding: 6px; border: 0; border-radius: 8px; cursor: pointer; font-size: 12px;
 }
-.zs-banner-new { background: #6366f1; color: #fff; }
-.zs-banner-new:hover { background: #4f46e5; }
 .zs-banner-x { background: rgba(255, 255, 255, 0.1); color: #e8e8ec; }
 .zs-banner-x:hover { background: rgba(255, 255, 255, 0.18); }
 /* Setup-tutorial link embedded in the bridge-lost banner (styled like a button,
@@ -612,12 +603,6 @@ html.zs-light #zs-more {
   border-color: rgba(99, 102, 241, 0.30);
 }
 html.zs-light #zs-more:hover { background: rgba(99, 102, 241, 0.18); }
-html.zs-light #zs-action[data-kind="new-session"],
-html.zs-light #zs-action[data-kind="new-chat"] {
-  background: rgba(0, 0, 0, 0.05); color: #374151; border-color: rgba(0, 0, 0, 0.10);
-}
-html.zs-light #zs-action[data-kind="new-session"]:hover,
-html.zs-light #zs-action[data-kind="new-chat"]:hover { background: rgba(0, 0, 0, 0.10); }
 html.zs-light #zs-action:disabled {
   background: rgba(0, 0, 0, 0.05); color: rgba(0, 0, 0, 0.35); border-color: rgba(0, 0, 0, 0.08);
 }
