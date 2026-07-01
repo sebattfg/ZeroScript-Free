@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="assets/icon.png" width="150" alt="ZeroScript icon">
-</p>
 
 # ZeroScript - Free AI Agent for Roblox Studio
 
