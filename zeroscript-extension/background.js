@@ -103,8 +103,9 @@ function connect() {
     scheduleReconnect();
   };
 
-  ws.onerror = () => {
-    // onclose will follow; nothing to do here but avoid an unhandled error.
+  ws.onerror = (e) => {
+    // onclose will follow; prevent error from bubbling to Chrome extension error log
+    try { e?.preventDefault?.(); } catch {}
     try { ws.close(); } catch {}
   };
 }

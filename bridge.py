@@ -81,7 +81,10 @@ CONFIG_PATH = os.path.join(HERE, "config.json")
 
 # The primary server. It is always present, added by the installer, and can
 # never be edited/removed through the extension (it is what ZeroScript is FOR).
-PRIMARY_SERVER_ID = "roblox"
+PRIMARY_SERVER_ID = "robloxstudio"
+
+def _get_roblox_client():
+    return mgr.clients.get("robloxstudio") or mgr.clients.get("roblox") or mgr.clients.get(PRIMARY_SERVER_ID)
 
 if _enable_ansi_colors():
     C = {
@@ -808,7 +811,7 @@ class MCPClient:
             # node-based MCP server "just works" from config.json.
             if sys.platform == "win32":
                 base = os.path.basename(cmd[0]).lower()
-                if base in ("npx", "npm", "yarn", "pnpm", "bunx"):
+                if base in ("npx", "npm", "yarn", "pnpm", "bunx", "uvx", "uv"):
                     cmd = ["cmd.exe", "/c"] + cmd
             env = dict(os.environ)
             for k, v in self.env.items():
@@ -1230,19 +1233,22 @@ def probe_studio():
       place - a place/datamodel is actually loaded and usable. False = Studio open on
               the home screen, or the active place was closed. Only meaningful when
               app is True (when app is False/None, place mirrors it)."""
-    roblox = mgr.clients.get(PRIMARY_SERVER_ID)
+    # 1. First probe chrrxs robloxstudio-mcp tools (get_connected_instances)
+    text_chrrxs = _probe_tool_text("get_connected_instances")
+    if text_chrrxs is not None:
+        try:
+            data = json.loads(text_chrrxs)
+            instances = data.get("instances") or []
+            if not instances:
+                return {"app": False, "place": False}
+            has_place = any(bool(inst.get("placeId") or inst.get("placeName")) for inst in instances)
+            return {"app": True, "place": has_place}
+        except Exception:
+            pass
+
+    # 2. Fall back to Roblox StudioMCP tools (list_roblox_studios / get_studio_state)
+    roblox = _get_roblox_client()
     if roblox is not None and roblox.is_alive() and not roblox.tools_cache:
-        # StudioMCP advertises ZERO tools - including list_roblox_studios itself -
-        # until Studio actually attaches. That makes _probe_tool_text() below
-        # return None (tool missing) the same way it would for a genuinely
-        # transient "probe busy" blip, even though "Studio is simply closed" is
-        # the common, SUSTAINED case here, not a blip. Left unhandled, the
-        # extension's "unknown = don't degrade" rule (by design, for real
-        # transient blips) then leaves the status dot stuck GREEN forever with
-        # Studio fully closed (seen live 2026-07-11: dot stayed "on", tooltip
-        # showing only an addon server's tool count). An alive client with an
-        # empty catalogue is an unambiguous "not connected", so short-circuit
-        # straight to that verdict instead of falling through to "unknown".
         return {"app": False, "place": False}
     text = _probe_tool_text(STUDIO_PROBE_TOOL)
     if text is None:
@@ -1587,7 +1593,7 @@ async def studio_watch(initial_app, initial_place=None):
         # every poll while the catalogue is empty; the moment Studio attaches,
         # tools appear, the index rebuilds, and the normal probe below flips
         # the state to connected on this same iteration.
-        rc0 = mgr.clients.get("roblox")
+        rc0 = _get_roblox_client()
         if rc0 is not None and rc0.is_alive() and not rc0.tools_cache:
             got = False
             try:
@@ -1611,7 +1617,7 @@ async def studio_watch(initial_app, initial_place=None):
                     killed, sname = await asyncio.to_thread(_kill_port_squatter)
                     if killed:
                         try:
-                            await asyncio.to_thread(mgr.restart, "roblox")
+                            await asyncio.to_thread(mgr.restart, rc0.id)
                         except Exception as e:
                             log(f"roblox proxy restart after squatter kill failed: {e}", "rd")
                         _print_squatter_hint(sname)
@@ -1627,7 +1633,7 @@ async def studio_watch(initial_app, initial_place=None):
                     last_reclaim = now0
                     if await asyncio.to_thread(_reclaim_studio_port, rc0):
                         try:
-                            await asyncio.to_thread(mgr.restart, "roblox")
+                            await asyncio.to_thread(mgr.restart, rc0.id)
                         except Exception as e:
                             log(f"roblox proxy restart after zombie kill failed: {e}", "rd")
                         _print_reregister_hint()
@@ -1645,7 +1651,7 @@ async def studio_watch(initial_app, initial_place=None):
                 # e.g. + Blender) - this message is specifically about Roblox
                 # attaching, so it must not borrow addon tool counts (same
                 # class of bug as the startup banner, see roblox_total above).
-                rc = mgr.clients.get("roblox")
+                rc = _get_roblox_client()
                 roblox_now = len(rc.tools_cache) if rc else 0
                 log(f"Roblox Studio connected - {roblox_now} tools ready.", "gr")
                 ever_connected = True
@@ -1826,13 +1832,13 @@ async def main():
         finer detection to preserve here. A proven port-squatter case is left to
         _boot_and_diagnose / studio_watch, which print their own, more specific
         hint."""
-        if PRIMARY_SERVER_ID not in mgr.clients:
+        rc = _get_roblox_client()
+        if rc is None:
             return
         await asyncio.sleep(12)  # give a fast, normal attach the chance to win
         if _guidance_shown["v"]:
             return
-        rc = mgr.clients.get(PRIMARY_SERVER_ID)
-        if rc is None or getattr(rc, "saw_foreign_ws_host", False):
+        if getattr(rc, "saw_foreign_ws_host", False):
             return
         if rc.tools_cache:
             # Tools present - either connected, or an attach is mid-flight; defer
@@ -1866,7 +1872,7 @@ async def main():
         # every configured server (Roblox + addons like Blender), so printing
         # `total` there falsely blamed addon tools on "NO Roblox Studio connected"
         # (seen live: 49 = 27 Roblox + 22 Blender, message only about Roblox).
-        roblox_client = mgr.clients.get("roblox")
+        roblox_client = _get_roblox_client()
         roblox_total = len(roblox_client.tools_cache) if roblox_client else 0
 
         # Port-hijack check (ropilot etc.), done at boot: the child's stderr has
@@ -1879,7 +1885,7 @@ async def main():
             killed, sname = await asyncio.to_thread(_kill_port_squatter)
             if killed:
                 try:
-                    await asyncio.to_thread(mgr.restart, "roblox")
+                    await asyncio.to_thread(mgr.restart, roblox_client.id)
                     roblox_total = len(roblox_client.tools_cache)
                     total = len(mgr.list_tools())
                 except Exception as e:
@@ -1899,7 +1905,7 @@ async def main():
                 and await asyncio.to_thread(_roblox_studio_app_running) is True
                 and await asyncio.to_thread(_reclaim_studio_port, roblox_client)):
             try:
-                await asyncio.to_thread(mgr.restart, "roblox")
+                await asyncio.to_thread(mgr.restart, roblox_client.id)
                 roblox_total = len(roblox_client.tools_cache)
                 total = len(mgr.list_tools())
             except Exception as e:

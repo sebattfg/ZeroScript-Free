@@ -873,38 +873,103 @@ const ZSProvider = (() => {
   // dropdown is OPEN - collapsed, only the model NAME (`.model-selector-text`)
   // shows. So we scan every open dropdown, cache name→capability (persisted to
   // localStorage so it survives reloads), seed the models already confirmed, and
-  // DEFAULT-DENY any model we have never seen a description for.
-  const MODEL_VIS_LS = "zsQwenModelVision2"; // bumped: old key may hold a stale Max-Preview=false
-  const modelVis = new Map([
-    // Seed. Some of these are USER-CONFIRMED, not derivable from the description:
-    // Qwen3.8-Max-Preview reads images (user-confirmed 2026-07) yet its selector
-    // description says NEITHER "multimodal" NOR "text-only" - so the description
-    // scan must NOT be allowed to overwrite this seed (see visionFromDesc's null
-    // = "unknown, leave the cache alone"). Plus models say "multimodal"; Qwen3.7-Max
-    // says "text-only (no vision)".
+  // support pattern/heuristic matching for known model series (e.g. Qwen 3.8+).
+  const MODEL_VIS_LS = "zsQwenModelVision3"; // bumped to clear any stale cache
+  const normModel = (n) => String(n || "").toLowerCase().replace(/[\s_\-]+/g, "");
+
+  function guessVisionFromName(name) {
+    const norm = normModel(name);
+    if (!norm) return false;
+    // Explicit vision / multimodal / VL keywords
+    if (/vl|vision|视觉|多模态|multimodal|image|photo/.test(norm)) return true;
+    // QwQ reasoning models are text-only
+    if (/qwq/.test(norm)) return false;
+    // Qwen 3.8+ family (Qwen3.8-Max, Qwen3.8-Plus, Qwen3.9, Qwen4+, etc.) are multimodal
+    if (/qwen(?:3\.[8-9]|[4-9]|\d{2,})/.test(norm)) return true;
+    // Plus models (Qwen-Plus, Qwen3.x-Plus) are multimodal
+    if (/plus/.test(norm)) return true;
+    // Known text-only older Max versions (Qwen 2.5 - 3.7 Max, bare Qwen3-Max)
+    if (/qwen(?:2(?:\.5)?|3(?:\.[0-7])?).*max/.test(norm)) return false;
+    return false;
+  }
+
+  const SEED_MODEL_VIS = [
+    // Qwen 3.8+ family (multimodal / vision-enabled)
+    ["Qwen3.8-Max", true],
+    ["Qwen 3.8 Max", true],
+    ["Qwen3.8 Max", true],
+    ["Qwen-3.8-Max", true],
+    ["Qwen3.8-Max-Preview", true],
+    ["Qwen 3.8 Max Preview", true],
+    ["Qwen3.8 Max Preview", true],
+    ["Qwen3.8-Plus", true],
+    ["Qwen 3.8 Plus", true],
+    ["Qwen3.8 Plus", true],
+    ["Qwen3.8", true],
+    ["Qwen 3.8", true],
+    ["Qwen3.8-27B", true],
+    ["Qwen3.8-72B", true],
+    ["Qwen3.8-Chat", true],
+
+    // Plus series (multimodal)
+    ["Qwen-Plus", true],
+    ["Qwen 3.7 Plus", true],
     ["Qwen3.7-Plus", true],
+    ["Qwen 3.6 Plus", true],
     ["Qwen3.6-Plus", true],
-    ["Qwen3.6-27B", true],              // "supports text and multimodal tasks"
-    ["Qwen3.8-Max-Preview", true],      // user-confirmed (silent description)
-    ["Qwen3.7-Max", false],             // "text-only (no vision capabilities)"
-    ["Qwen3.6-Max-Preview", false],     // "vision capabilities are not yet supported"
-  ]);
+    ["Qwen3.5-Plus", true],
+    ["Qwen 3.5 Plus", true],
+    ["Qwen3.6-27B", true],
+    ["Qwen 3.6 27B", true],
+
+    // VL (Vision-Language) models
+    ["Qwen-VL", true],
+    ["Qwen-VL-Max", true],
+    ["Qwen-VL-Plus", true],
+    ["Qwen2.5-VL", true],
+    ["Qwen2.5-VL-72B", true],
+    ["Qwen2.5-VL-7B", true],
+    ["Qwen2-VL", true],
+    ["Qwen2-VL-72B", true],
+    ["Qwen2-VL-7B", true],
+
+    // Known text-only models
+    ["Qwen3.7-Max", false],
+    ["Qwen 3.7 Max", false],
+    ["Qwen3.6-Max", false],
+    ["Qwen 3.6 Max", false],
+    ["Qwen3.6-Max-Preview", false],
+    ["Qwen 3.6 Max Preview", false],
+    ["Qwen3.5-Max", false],
+    ["Qwen 3.5 Max", false],
+    ["Qwen2.5-Max", false],
+    ["Qwen 2.5 Max", false],
+    ["Qwen-Turbo", false],
+    ["Qwen-Long", false],
+    ["QwQ-32B", false],
+    ["QwQ-32B-Preview", false],
+  ];
+
+  const modelVis = new Map(SEED_MODEL_VIS);
   try {
     const saved = JSON.parse(localStorage.getItem(MODEL_VIS_LS) || "{}");
-    for (const [k, v] of Object.entries(saved)) modelVis.set(k, !!v);
+    for (const [k, v] of Object.entries(saved)) {
+      if (!modelVis.has(k)) modelVis.set(k, !!v);
+    }
   } catch {}
 
   const currentModelName = () => {
-    const el = document.querySelector('[class*="model-selector-text"]');
+    const el = document.querySelector(
+      '[class*="model-selector-text"], [class*="model-select"] [class*="text"], [class*="model-name"], .model-selector-text'
+    );
     return el ? (el.textContent || "").trim() : "";
   };
   // Tri-state capability from the model's description:
   //   false → an EXPLICIT text-only / no-vision statement,
   //   true  → an EXPLICIT multimodal / vision statement,
-  //   null  → the description says NEITHER (e.g. Qwen3.8-Max-Preview: "delivering
-  //           state-of-the-art performance") → UNKNOWN, so the scan must leave the
-  //           seed/cache/user-set value untouched (a silent description is NOT
-  //           proof of text-only; Max-Preview reads images despite saying nothing).
+  //   null  → the description says NEITHER (e.g. Qwen3.8-Max: "delivering
+  //           state-of-the-art performance") → UNKNOWN, so the scan leaves the
+  //           seed/cache/heuristic value untouched.
   function visionFromDesc(desc) {
     const d = (desc || "").toLowerCase();
     // Negatives FIRST (they win). Note Qwen3.6-Max-Preview reads "vision
@@ -924,12 +989,17 @@ const ZSProvider = (() => {
     document.querySelectorAll('[class*="model-item___"]').forEach((r) => {
       const name = r.querySelector('[class*="model-item-name"]');
       const desc = r.querySelector('[class*="model-item-desc"]');
-      if (!name || !desc) return;
+      if (!name) return;
       const nm = (name.textContent || "").trim();
       if (!nm) return;
-      const cap = visionFromDesc(desc.textContent);
-      if (cap === null) return;            // silent description → don't touch the seed/cache
-      if (modelVis.get(nm) !== cap) { modelVis.set(nm, cap); changed = true; }
+      let cap = desc ? visionFromDesc(desc.textContent) : null;
+      if (cap === null) {
+        if (guessVisionFromName(nm)) cap = true;
+      }
+      if (cap !== null && modelVis.get(nm) !== cap) {
+        modelVis.set(nm, cap);
+        changed = true;
+      }
     });
     if (changed) {
       try { localStorage.setItem(MODEL_VIS_LS, JSON.stringify(Object.fromEntries(modelVis))); } catch {}
@@ -938,9 +1008,13 @@ const ZSProvider = (() => {
   }
   function currentModelSupportsVision() {
     const nm = currentModelName();
-    if (!nm) return false;                 // selector unreadable → conservative
+    if (!nm) return true;                 // selector unreadable → default to multimodal on modern Qwen
     if (modelVis.has(nm)) return !!modelVis.get(nm);
-    return false;                          // unseen model → deny until confirmed
+    const norm = normModel(nm);
+    for (const [k, v] of modelVis.entries()) {
+      if (normModel(k) === norm) return !!v;
+    }
+    return guessVisionFromName(nm);
   }
   let _modelCapObs = null;
   function startModelCapWatch() {

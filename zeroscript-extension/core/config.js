@@ -27,7 +27,7 @@ const ZS = (() => {
       return "read";
     if (/^(multi_edit|insert_from_creator_store|store_image)$/.test(n) || n === "execute_luau")
       return "edit";
-    if (n === "screen_capture") return "screen";
+    if (n === "screen_capture" || n === "capture_screenshot") return "screen";
     if (/^generate_/.test(n)) return "generate";
     if (n.startsWith("roblox") || /studio|luau|instance|workspace/i.test(n)) return "roblox";
     return "tool";
