@@ -12,6 +12,8 @@
     "https://gemini.google.com/*",
     "https://www.kimi.com/*",
     "https://kimi.com/*",
+    "https://www.kimi.ai/*",
+    "https://kimi.ai/*",
     "https://chat.z.ai/*",
     "https://chat.qwen.ai/*",
     "https://arena.ai/*",
@@ -63,7 +65,12 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.kimi.com/*", "https://kimi.com/*"],
+      "matches": [
+        "https://www.kimi.com/*",
+        "https://kimi.com/*",
+        "https://www.kimi.ai/*",
+        "https://kimi.ai/*"
+      ],
       "js": ["core/config.js", "core/parser.js", "providers/kimi.js", "core/main.js"],
       "css": ["overlay.css"],
       "run_at": "document_idle"

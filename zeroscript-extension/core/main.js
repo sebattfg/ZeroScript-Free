@@ -105,7 +105,7 @@
     { name: "DeepSeek", url: "https://chat.deepseek.com/" },
     { name: "ChatGPT", url: "https://chatgpt.com/" },
     { name: "Gemini", url: "https://gemini.google.com/app" },
-    { name: "Kimi", url: "https://www.kimi.com/" },
+    { name: "Kimi", url: "https://www.kimi.ai/" },
     { name: "GLM", url: "https://chat.z.ai/" },
     { name: "Qwen", url: "https://chat.qwen.ai/" },
     { name: "Arena", url: "https://arena.ai/text/direct" },
