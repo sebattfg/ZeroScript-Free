@@ -67,3 +67,44 @@ ok("salvage refuses trailing comma", ZSParse.salvageCutOff('{"command": "multi_e
 // Escaped quotes inside values must not confuse the string tracking.
 const cutEsc = ZSParse.salvageCutOff('{"command": "execute_luau", "params": {"code": "print(\\"hi\\")", "datamodel_type": "Edit"}');
 ok("salvage handles escaped quotes", cutEsc && cutEsc.tool === "execute_luau" && cutEsc.arguments.code === 'print("hi")');
+
+// ── DeepSeek's native DSML tool-call markup ────────────────────────────────
+// DeepSeek sometimes answers in its own agentic markup instead of a ZeroScript
+// command. It has no "command"/"tool" key and no ###...### markers, so the
+// classify ladder used to miss it entirely and the turn died as plain text.
+// DSML_RE is what fires the "dsml" parse_error that asks for a rewrite.
+const dsmlFull = [
+  '<|DSML|>tool_calls>',
+  '<|DSML|>invoke name="script_read">',
+  '<|DSML|>parameter name="target_file" string="true">game.ServerStorage.ZeroScript.Memory</|DSML|>parameter>',
+  '</|DSML|>invoke>',
+  '</|DSML|>tool_calls>',
+].join("\n");
+ok("dsml full invoke block", ZSParse.DSML_RE.test(dsmlFull));
+// The degenerate form seen in the wild: a bare opener and NO tool name at all -
+// which is why the guard must not be gated on a known command name.
+ok("dsml bare opener + prose",
+   ZSParse.DSML_RE.test('<|DSML|>tool_calls>\n\n<section>Let me explore the remaining key services.</section>'));
+// DeepSeek writes its special tokens with the FULL-WIDTH bar (U+FF5C).
+ok("dsml full-width bar", ZSParse.DSML_RE.test('<｜DSML｜>invoke name="script_read">'));
+// The form as it appeared in user screenshots - doubled bars with spaces. The
+// live capture (2026-08-22) showed DeepSeek actually emits plain ASCII bars and
+// that this spacing is only the site's rendering, but the detector stays
+// permissive so a build that really emits it is covered.
+ok("dsml doubled bars with spaces", ZSParse.DSML_RE.test('< |  | DSML |  | tool_calls>'));
+ok("dsml doubled-bar closer", ZSParse.DSML_RE.test('</ |  | DSML |  | parameter>'));
+ok("dsml closing tag alone", ZSParse.DSML_RE.test('</|DSML|>parameter>'));
+// DSML is NOT a ZeroScript command shape: it must reach the fallthrough guards.
+ok("dsml is not a tool signature", !ZSParse.hasToolSignature(dsmlFull));
+// DSML must NOT be a tool signature (it has to fall through to the classify
+// ladder so the "dsml" parse_error fires) but it MUST be a command shape, so the
+// camouflage sweep masks the raw markup behind a chip instead of showing it.
+ok("dsml IS a command shape (so it gets masked)", ZSParse.hasCommandShape(dsmlFull));
+ok("dsml bare opener is a command shape too", ZSParse.hasCommandShape('<|DSML|>tool_calls>'));
+// No false positives: ordinary prose, a real command, and - critically - OUR OWN
+// error note, which names DSML in words. If the note matched, the model echoing
+// it would re-fire the error forever.
+ok("no dsml false positive on prose",
+   !ZSParse.DSML_RE.test("I considered the DSML invoke and parameter tags, but used JSON instead."));
+ok("no dsml false positive on a real command",
+   !ZSParse.DSML_RE.test('{"command": "script_read", "params": {"target_file": "x"}}'));

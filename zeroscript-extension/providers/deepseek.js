@@ -77,6 +77,7 @@ const ZSProvider = (() => {
     continueBtn: /^(continue|continuer|继续(生成)?|fortfahren|continuar|seguir|続行)$/i,
     stopped: /(arrêté|arrété|stopped|已停止|停止生成|已暂停)/i,
     expertMode: /expert|专家|专业/i,
+    instantMode: /instant|rapide|快速/i,
     visionMode: /vision|视觉|图像|多模态/i,
     deepThink: /pensée profonde|pensee profonde|profonde|réflexion|reflexion|deep ?think|深度思考|r1/i,
     searchMode: /recherche intelligente|smart search|search|web|搜索/i,
@@ -286,6 +287,10 @@ const ZSProvider = (() => {
   }
   const findExpertRadio = () => findModeRadio("expert", RE.expertMode);
   const findVisionRadio = () => findModeRadio("vision", RE.visionMode);
+  // Instant is the non-thinking tab. Its data-model-type is "default", NOT
+  // "instant" - it is DeepSeek's default model, so the attribute never carries
+  // the label shown on the tab.
+  const findInstantRadio = () => findModeRadio("default", RE.instantMode);
   const radioOn = (r) => !!r && r.getAttribute("aria-checked") === "true";
 
   // The user can CHOOSE the Vision tab; when they do we respect it (never force
@@ -343,11 +348,14 @@ const ZSProvider = (() => {
     const deepThink = findToggleBy(RE.deepThink);
     const search = findToggleBy(RE.searchMode);
     const vision = findVisionRadio();
+    const instant = findInstantRadio();
     return {
       expertFound: !!expert,
       expertOn: radioOn(expert),
       visionFound: !!vision,
       visionOn: radioOn(vision),
+      instantFound: !!instant,
+      instantOn: radioOn(instant),
       deepThinkFound: !!deepThink,
       deepThinkOn: !!deepThink && isPressedOn(deepThink),
       searchFound: !!search,
@@ -369,7 +377,13 @@ const ZSProvider = (() => {
       // EXCEPTION: if the user deliberately chose the Vision tab, RESPECT it (don't
       // force Expert back) - that's the only way to feed DeepSeek images, and
       // supportsVision then flips true so screen_capture is allowed for that turn.
-      if (!isVisionSelected()) {
+      // SAME for the Instant tab: it is a legitimate choice (much faster, no
+      // reasoning pass) and forcing Expert over it made Instant impossible to use
+      // with the agent at all - the ready gate below only ever accepted
+      // Expert/Vision, so Start just span. Instant carries NO image support, like
+      // Expert: supportsVision reads the Vision tab only, so it stays false and
+      // screen_capture keeps being refused.
+      if (!isVisionSelected() && !radioOn(findInstantRadio())) {
         const expert = findExpertRadio();
         if (expert && expert.getAttribute("aria-checked") !== "true") {
           try { expert.click(); } catch (e) { diag("mode_fallback", { reason, target: "expert", error: String(e && e.message || e) }); }
@@ -404,15 +418,15 @@ const ZSProvider = (() => {
     let state = composerModeState();
     for (let i = 0; i < 12; i++) {
       state = enforceComposer(reason);
-      // Ready as soon as the agent model is on (Expert, OR Vision if the user
-      // chose it) and Search is off. DeepThink is only required if a legacy toggle
-      // is actually present (V4 has none).
-      if ((state.expertOn || state.visionOn) && state.searchOff && (state.deepThinkOn || !state.deepThinkFound)) break;
+      // Ready as soon as an agent-usable model is on (Expert, or Vision/Instant if
+      // the user chose one) and Search is off. DeepThink is only required if a
+      // legacy toggle is actually present (V4 has none).
+      if ((state.expertOn || state.visionOn || state.instantOn) && state.searchOff && (state.deepThinkOn || !state.deepThinkFound)) break;
       await sleep(120);
     }
     state = composerModeState();
     diag("mode_ready", { reason, ...state });
-    return { ...state, ready: state.expertOn || state.visionOn };
+    return { ...state, ready: state.expertOn || state.visionOn || state.instantOn };
   }
 
   // DeepSeek's footer button doubles as SEND (an upward arrow) and STOP (a
@@ -878,6 +892,13 @@ const ZSProvider = (() => {
     const hasStart = (t) => P.LUA_START_RE.test(t) || t.includes("###mcp_tool###");
     const hasEnd = (t) => P.LUA_END_RE.test(t) || t.includes("###end_mcp_tool###") || t.includes("###end-mcp_tool###");
     const isJson = (t) => /\{\s*"(?:command|tool)"\s*:/.test(t);
+    // DeepSeek's own DSML tool-call markup (see ZSParse.DSML_RE). It is NOT a
+    // fenced block and NOT JSON - it renders as ordinary prose paragraphs - so
+    // neither predicate above matched it and nothing got hidden: the chip
+    // appeared but the raw tags stayed on screen next to it (reported live
+    // 2026-08-22). Its lines can be split across several paragraphs like a
+    // multi-element LUA block, so the contiguous run is hidden the same way.
+    const isDsml = (t) => P.DSML_RE.test(t);
     // The reply markdown containers (never the reasoning/think area).
     const containers = [...item.querySelectorAll(S.markdown)].filter((m) => !m.closest(S.thinking));
     if (!containers.length) return null;
@@ -889,11 +910,17 @@ const ZSProvider = (() => {
         const txt = (kids[i].textContent || "");
         const tLow = txt.toLowerCase();
         const startsBlock = hasStart(tLow);
-        if (!startsBlock && !isJson(txt)) { i++; continue; }
+        const startsDsml = isDsml(txt);
+        if (!startsBlock && !isJson(txt) && !startsDsml) { i++; continue; }
         // Found the start of a tool block. Hide this child…
         const runStart = i;
         let runEnd = i;
-        if (startsBlock && !hasEnd(tLow)) {
+        if (startsDsml) {
+          // DSML has no end marker to look for - the block IS the run of
+          // consecutive paragraphs carrying the tags, so walk while they match.
+          let j = i + 1;
+          while (j < kids.length && isDsml(kids[j].textContent || "")) { runEnd = j; j++; }
+        } else if (startsBlock && !hasEnd(tLow)) {
           // multi-element LUA/MCP block → extend until the end marker (or, if the
           // turn is still truncated, to the end of this container).
           let j = i + 1;

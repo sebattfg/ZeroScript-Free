@@ -2,6 +2,39 @@
 
 All notable changes to ZeroScript Free are documented here.
 
+## [1.5.3] - 2026-08-22
+
+### Changed
+- **Kimi moved to kimi.ai.** Kimi's old address, `kimi.com`, now asks for a
+  Chinese phone number to sign in, which locked most people out. Kimi runs on
+  `kimi.ai` from now on - the extension only activates there. The page itself is
+  unchanged, so nothing about using Kimi with ZeroScript is different: open
+  https://www.kimi.ai, the bar appears above the input box as before. If you had
+  Kimi tabs open on the old address, reopen them on the new one.
+- **DeepSeek: the Instant model is now allowed to run the agent.** Starting a
+  session forced the Expert tab and, worse, the readiness gate only ever accepted
+  Expert or Vision - so picking Instant left "Start Roblox agent" spinning
+  forever with no explanation. Instant is now respected like Vision: pick it
+  before starting and the session runs on it. It is much faster than Expert, at
+  the cost of the reasoning pass. Images stay disabled on Instant exactly as they
+  are on Expert - the Vision tab is still the only one that can see screenshots,
+  so `screen_capture` is not offered to the model on the other two.
+
+### Fixed
+- **DeepSeek: a reply written in DeepSeek's own tool-call markup no longer kills
+  the turn.** DeepSeek sometimes answers with its internal DSML invoke tags
+  instead of a ZeroScript command. That format carries none of the markers
+  ZeroScript looks for, so nothing recognised it as a command attempt: the tool
+  never ran, the raw tags were left on screen, and the agent silently stopped
+  with the user waiting on a dead turn. It is now detected, the markup is hidden
+  behind a tool chip like any other command, and DeepSeek is told the format is
+  unreadable so it rewrites the call properly. The chip shows the usual spinner
+  while the model is still writing, then settles red as "wrong format".
+- **ChatGPT: the ZeroScript bar no longer collides with the composer's rounded
+  corners.** The composer card is rounded by 28px and the bar sits flush against
+  its top edge, so the Discord button's corner fell outside the rounded shape and
+  was sliced off by the card. Both ends of the bar are inset to clear the curve.
+
 ## [1.5.2] - 2026-08-14
 
 ### Added

@@ -115,6 +115,16 @@ html.zs-light #zs-bar.zs-bar-anchored {
      the separator stays visible while the agent runs. */
   margin: 0 -8px 14px;
   width: auto;
+  /* The card's corner radius is 28px and the bar sits flush with its top edge,
+     so the bar's outermost children land inside the corner arc. With the
+     generic 16px padding the Discord button ended up 8px from the card edge and
+     7.3px from its top - its top-right corner falls OUTSIDE the rounded rect and
+     was being sliced off by the card's `overflow-clip` (measured live). 24px
+     puts both ends 16px in from the card edge, which clears the arc with room to
+     spare and stops the dot crowding the left curve. Same problem, and same
+     fix, as the Meta AI rule below. */
+  padding-left: 24px;
+  padding-right: 24px;
 }
 /* The input row's wrapper carries -my-2.5, so its painted box overflows its grid
    row by 10px top and bottom. The card only has 5px of vertical padding and

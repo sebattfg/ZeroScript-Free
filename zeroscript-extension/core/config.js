@@ -81,6 +81,16 @@ const ZS = (() => {
           'run. The key must be exactly "command" - not "toolName", "tool", "name", "function" or ' +
           '"action" - and every argument goes INSIDE "params", like ' +
           '{"command": "name", "params": { ...your parameters... }}. Please retry.',
+        // DeepSeek sometimes falls back to its own native agentic markup. The
+        // note must NEVER quote the markers literally: the reply that follows
+        // often echoes the wording, and a quoted marker would re-trigger the
+        // detector and loop the error forever. Describe it, don't reproduce it.
+        dsml:
+          "ERROR: you wrote that call in your own internal tool-call markup (the DSML invoke/parameter " +
+          "tags). ZeroScript cannot read that format, so the command did not run. Never use those tags " +
+          "here. Write the call as a single plain-text JSON object instead, exactly like " +
+          '{"command": "name", "params": { ...your parameters... }} - one command per reply. ' +
+          "Please retry.",
       };
       return notes[reason] || notes.malformed;
     },

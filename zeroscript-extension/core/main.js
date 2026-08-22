@@ -105,7 +105,7 @@
     { name: "DeepSeek", url: "https://chat.deepseek.com/" },
     { name: "ChatGPT", url: "https://chatgpt.com/" },
     { name: "Gemini", url: "https://gemini.google.com/app" },
-    { name: "Kimi", url: "https://www.kimi.com/" },
+    { name: "Kimi", url: "https://www.kimi.ai/" },
     { name: "GLM", url: "https://chat.z.ai/" },
     { name: "Qwen", url: "https://chat.qwen.ai/" },
     { name: "Arena", url: "https://arena.ai/text/direct" },
@@ -695,6 +695,20 @@
         if (nm && nm !== "command" && (A.toolNames.has(nm) || A.toolNames.has(bareToolName(nm)))) {
           return { kind: "parse_error", reason: "malformed", raw: r, item: d.item };
         }
+      }
+      // The model answered in its OWN native tool-call markup instead of a
+      // ZeroScript command - DeepSeek's DSML invoke/parameter tags (reported by
+      // users, 2026-08; DeepSeek is the only provider seen doing it). It carries
+      // no "command"/"tool" key and no ###...### markers, so hasToolSignature is
+      // false and every guard below misses it too: the turn finalized as a
+      // plain-text answer, the tool never ran, and the loop ended on a dead agent.
+      // Checked FIRST among the fallthrough guards because the marker is
+      // unambiguous - unlike the guards below it needs no known-tool gate, which
+      // matters because the degenerate form seen in the wild carries no tool name
+      // at all (a bare tool_calls opener followed by prose).
+      if (ZSParse.DSML_RE.test(r)) {
+        diag("cmd.dsml", { len: r.length });
+        return { kind: "parse_error", reason: "dsml", raw: r, item: d.item };
       }
       // Malformed execute_luau: the model wrote the ###END_LUA### closer but
       // FORGOT the ###LUA### opener, so hasToolSignature missed it and the block
@@ -1319,6 +1333,10 @@
             const detail = res.reason === "unclosed" ? "cut off"
               : res.reason === "luaOpener" ? "missing ###LUA###"
               : res.reason === "envelope" ? "bad format"
+              // DSML is not JSON at all - it is DeepSeek's own markup - so the
+              // default "bad JSON" would send the user (and anyone reading a bug
+              // report) looking for a syntax slip that does not exist.
+              : res.reason === "dsml" ? "wrong format"
               : "bad JSON";
             decorate.toolBox(res.item, failName, "err", detail, true, "", ZS.toolCategory(failName));
           }
@@ -2342,6 +2360,22 @@
           neverRun && item === P.lastAssistant() && Date.now() - A.lastGenAt <= RESUME_FRESH_MS;
         let phase = stopped ? "err" : (orphanPending ? "idle" : ((live || pendingExec) ? "run" : "done"));
         let detail = stopped ? "stopped" : (orphanPending ? "not run" : "");
+        // A DSML turn is the model calling a tool in its OWN markup, which can
+        // never be executed - it always resolves to the "dsml" parse_error. So
+        // once it has FINISHED streaming, "waiting to run" (spinner) and "not
+        // run" (grey) are both wrong: it is not pending, it is already decided.
+        // Left alone it inherited pendingExec and span for the whole
+        // RESUME_FRESH_MS window before settling grey (reported live 2026-08-22).
+        // Gated on !live on purpose: while the model is still WRITING the block
+        // it must behave like any other command and show the spinner, or a slow
+        // generation gives the user no feedback at all that anything is happening
+        // - the chip paints "run" as it streams, then repaints red here the
+        // moment generation ends. When our error result lands below, the
+        // error-aware settle just below is skipped (phase is no longer "done") so
+        // the more precise "bad format" wording survives.
+        if (!stopped && !live && phase !== "err" && ZSParse.DSML_RE.test(txt)) {
+          phase = "err"; detail = "wrong format";
+        }
         // Error-aware settle: a command whose injected result RIGHT BELOW is an
         // ERROR must never wear a green ✓. The loop paints this correctly while
         // it owns the turn, but a revisited conversation (or a node swap that
