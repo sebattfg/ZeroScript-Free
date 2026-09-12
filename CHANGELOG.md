@@ -2,6 +2,18 @@
 
 All notable changes to ZeroScript Free are documented here.
 
+## [1.5.6] - 2026-09-11
+
+### Changed
+- **DeepSeek: full rewrite - auto-adapt (user's choice respected).**
+  Full rewrite of `providers/deepseek.js` per user request (scope: overall everything).
+  The bridge no longer forces Expert/DeepThink - it respects Instant / Expert / Vision /
+  Unified and the DeepThink toggle exactly as the user left them (auto-adapt). Only
+  Search is still forced OFF (it hijacks tool calls). Adds `unified` detection,
+  `modeLabel` diagnostics, `promptExtra` note, faster timings (WARMUP 30s, STABLE 6s,
+  GEN_IDLE 600ms) for snappier loops, and version beacon `2026-09_auto-adapt-full-rewrite`.
+  Supports live browser load on `chat.deepseek.com`.
+
 ## [1.5.5] - 2026-09-10
 
 ### Fixed

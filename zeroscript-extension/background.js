@@ -13,7 +13,7 @@ const URL = `ws://127.0.0.1:${PORT}`;
 // Chat sites where a ZeroScript provider content script runs. Status pushes go
 // to every tab matching these. Add the new provider's URL pattern here (and in
 // manifest.json content_scripts + host_permissions) when integrating another AI.
-const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*", "https://www.kimi.ai/*", "https://kimi.ai/*", "https://chat.z.ai/*", "https://chat.qwen.ai/*", "https://arena.ai/*", "https://www.meta.ai/*", "https://meta.ai/*"];
+const PROVIDER_URLS = ["https://chat.deepseek.com/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*", "https://www.kimi.ai/*", "https://kimi.ai/*", "https://chat.z.ai/*", "https://chat.qwen.ai/*", "https://arena.ai/*", "https://www.meta.ai/*", "https://meta.ai/*", "https://grok.com/*", "https://copilot.microsoft.com/*"];
 
 const RECONNECT_MIN = 1000;
 const RECONNECT_MAX = 5000;
@@ -139,11 +139,10 @@ function stopHeartbeat() {
   heartbeatTimer = null;
 }
 
-// Resolve once the socket is OPEN, or false after `timeout` ms.
 function waitForConnection(timeout = 8000) {
   return new Promise((resolve) => {
     if (connected && ws && ws.readyState === WebSocket.OPEN) return resolve(true);
-    connect(); // nudge a (re)connection - important after a worker wake-up
+    connect();
     const t0 = Date.now();
     const iv = setInterval(() => {
       if (connected && ws && ws.readyState === WebSocket.OPEN) {
@@ -354,7 +353,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true; // async sendResponse
 });
 
-// Wake/keepalive hooks.
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
 

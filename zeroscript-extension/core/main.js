@@ -16,7 +16,7 @@
   const P = ZSProvider;
   const T = P.timings;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const log = (...a) => console.log("[zeroscript]", ...a);
+  const log = () => {};
 
   // ── Anti-bot mitigation (EXPERIMENTAL) ──────────────────────────────────
   // Suspected contributor to Arena's captcha: the agentic loop sends turns
@@ -33,27 +33,8 @@
     return sleep(lo + Math.random() * (hi - lo));
   }
 
-  // ── Diagnostics ───────────────────────────────────────────────────────────
-  // Persistent, lightweight breadcrumb log of the agentic loop's key decisions
-  // (sends, response kinds, tool start/end, resumes, stops). Read back from the
-  // console (filter "[zs-diag]") or window.__zsDiag (also mirrored onto a hidden
-  // DOM node for a main-world inspector). Each entry carries a turn snapshot.
-  const ZS_DIAG_MAX = 300;
   const _diag = [];
-  function diag(event, data) {
-    const snap = { ...P.snapshot(), gen: P.isGenerating(), run: A.running };
-    const e = { t: Date.now(), iso: new Date().toISOString().slice(11, 23), event,
-                data: data || null, snap };
-    _diag.push(e);
-    if (_diag.length > ZS_DIAG_MAX) _diag.shift();
-    try { console.log("[zs-diag]", e.iso, event, JSON.stringify({ ...data, ...snap })); } catch {}
-    try {
-      let n = document.getElementById("zs-diag-log");
-      if (!n) { n = document.createElement("script"); n.type = "application/json"; n.id = "zs-diag-log"; (document.body || document.documentElement).appendChild(n); }
-      n.textContent = JSON.stringify(_diag);
-    } catch {}
-    try { window.__zsDiag = _diag; } catch {}
-  }
+  function diag(){}
   P.init({ diag });
 
   // ── [TRACE] Main-thread stall detector ─────────────────────────────────────
@@ -65,17 +46,14 @@
   // the user sees the freeze = the smoking gun; correlate its timestamp with the
   // surrounding diag events (esp. code.snapAll / dom.read.slow) to see WHAT ran.
   {
-    const EXPECT = 250, STALL = 800; // only log gaps beyond this many ms
+    const EXPECT = 250, STALL = 800;
     let _lastTick = Date.now();
-    setInterval(() => {
-      const now = Date.now();
-      const gap = now - _lastTick;
-      _lastTick = now;
-      if (gap > STALL) {
-        diag("stall.detected", { ms: gap, overBy: gap - EXPECT,
-          toolRunning: A.toolRunning, running: A.running, injecting: A.injecting });
-      }
-    }, EXPECT);
+    let _stallIv = null;
+    function _setStall(on){
+      if(on && !_stallIv){ _lastTick = Date.now(); _stallIv = setInterval(()=>{ const now=Date.now(); const gap=now-_lastTick; _lastTick=now; if(gap>STALL) diag("stall.detected",{ms:gap,overBy:gap-EXPECT,toolRunning:A.toolRunning,running:A.running,injecting:A.injecting}); }, EXPECT); }
+      if(!on && _stallIv){ clearInterval(_stallIv); _stallIv=null; }
+    }
+    setInterval(()=> _setStall(A.toolRunning||A.running||A.injecting), 1000);
   }
 
   // Ko-fi tip link.
@@ -110,6 +88,8 @@
     { name: "Qwen", url: "https://chat.qwen.ai/" },
     { name: "Arena", url: "https://arena.ai/text/direct" },
     { name: "Meta AI", url: "https://www.meta.ai/" },
+    { name: "Grok", url: "https://grok.com/" },
+    { name: "Copilot", url: "https://copilot.microsoft.com/" },
   ];
 
   const A = {
@@ -746,7 +726,21 @@
         diag("cmd.wrongKey", { name: wk, known: hit, catalogue: A.toolNames.size });
         if (hit) return { kind: "parse_error", reason: "toolKey", raw: r, item: d.item };
       }
-      // NOTE: a site "server busy / something went wrong" notice is deliberately
+      // Claude/Grok/Copilot refusal: says it doesn't have list_commands as a native tool.
+      // That is a misunderstanding - ZeroScript commands are plain JSON you TYPE, not native tools.
+      // Treat this specific refusal as a parse_error so we send a correction and retry.
+      if (/I don't have a tool called/i.test(r) && /list_commands/i.test(r)) {
+        diag("cmd.claudeRefusal", { len: r.length });
+        return { kind: "parse_error", reason: "toolKey", raw: r, item: d.item };
+      }
+      if (/I searched.*connector/i.test(r) && /Roblox/i.test(r)) {
+        diag("cmd.connectorRefusal", { len: r.length });
+        return { kind: "parse_error", reason: "toolKey", raw: r, item: d.item };
+      }
+      if (/I don't see any.*MCP.*connectors?/i.test(r) || /no.*MCP.*connectors?.*active/i.test(r)) {
+        diag("cmd.mcpNoConnector", { len: r.length });
+        return { kind: "parse_error", reason: "toolKey", raw: r, item: d.item };
+      }
       // NOT special-cased. It falls through to kind:"text" below and simply ENDS
       // the loop as a final answer - no auto-retry. Retrying risked an infinite
       // re-answer loop when the model's OWN prose said "try again", and treating
@@ -845,12 +839,13 @@
   // an image (see runTool's r.images branch) - the reload-proof signal, readable
   // straight from the injected result turn's text even when no loop is running.
   const IMAGE_FEEDBACK_RE = /image is attached to THIS message/i;
+  let _imgSaveDebounce=null;
   function rememberImageTool(name) {
     const bare = bareToolName(name);
     if (!bare || A.imageTools.has(bare)) return;
     A.imageTools.add(bare);
     diag("imageTool.remember", { name: bare, total: A.imageTools.size });
-    try { chrome.storage.local.set({ zsImageTools: [...A.imageTools].slice(-200) }); } catch {}
+    clearTimeout(_imgSaveDebounce); _imgSaveDebounce=setTimeout(()=>{ try { chrome.storage.local.set({ zsImageTools: [...A.imageTools].slice(-200) }); } catch {} },1500);
   }
   try {
     chrome.storage.local.get("zsImageTools", (r) => {
@@ -1712,11 +1707,12 @@
   // the threshold was never seen at the moment it mattered (caught live: 12 tool
   // results, counter still reading 11, no rider). Storage is a durability
   // mechanism here, not the source of truth for the current tick.
+  let _saveDebounce=null;
   function bumpSys(field) {
     if (!RESEND_SYS_EVERY) return;
     if (sysCountKey !== sysKey()) { sysCountKey = sysKey(); }
     sysCount[field]++;
-    saveSysCount();
+    clearTimeout(_saveDebounce); _saveDebounce=setTimeout(saveSysCount,2000);
   }
   function resetSysCount() {
     sysCount = { users: 0, results: 0 };
@@ -2149,6 +2145,7 @@
 
       // 1. System-prompt bootstrap turn → animated while starting, gear when done.
       if (txt.includes(ZS.SYS_MARKER)) {
+        if (P.id === "grok") return;
         const phase = A.starting ? "run" : "sys";
         if (item.dataset.zs !== "sys" || item.dataset.zphase !== phase || chipGone) {
           this.chip(item, { label: "Starting Up", category: "tool", phase, cls: "sys", whole: true });
@@ -2614,7 +2611,10 @@
       }, true);
 
       applyTheme();
-      setInterval(applyTheme, 2000); // follow the host page toggling its theme
+      try {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+        new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true, attributeFilter:['class','data-theme']});
+      } catch { setInterval(applyTheme, 5000); }
       renderBar();
       placeBar(); // start the per-frame anchoring loop
     }
@@ -4227,8 +4227,6 @@
     scheduleSweep();
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
-  // Belt-and-braces: a low-frequency sweep regardless of tab visibility or
-  // mutation timing, so camouflage always converges.
   setInterval(scheduleSweep, 1500);
   // When the user returns to the tab, immediately refresh camouflage/state.
   document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleSweep(); });

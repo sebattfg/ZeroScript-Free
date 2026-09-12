@@ -63,6 +63,12 @@ html.zs-light #zs-bar.zs-bar-inline.zs-bar-inside {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+/* Claude: nudge bar slightly above composer for breathing room */
+#zs-bar.zs-bar-inline.zs-bar-inside.zs-prov-claude {
+  margin: 0 0 10px;
+  transform: translateY(-4px);
+}
+
 /* Anchored mode: the bar keeps position:fixed (it must NOT enter the site's
    framework-managed composer DOM, e.g. Kimi's Vue subtree) but the core sizes
    and positions it to hug the composer's top edge at full width, with reserved

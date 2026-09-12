@@ -141,9 +141,13 @@ const ZSProvider = (() => {
         _snCount = 0; _snMaxMs = 0; _snMaxBlocks = 0; _snWinStart = now;
       }
     };
-    _codeObs = new MutationObserver(snapAll);
+    _codeObs = new MutationObserver(() => {
+      if (document.hidden) return;
+      requestAnimationFrame(snapAll);
+    });
     try {
-      _codeObs.observe(document.body, { subtree: true, childList: true, characterData: true });
+      const container = document.querySelector('.qwen-chat-message-assistant')?.parentElement || document.body;
+      _codeObs.observe(container, { subtree: true, childList: true, characterData: true });
     } catch {}
     snapAll(); // seed any blocks already present
   }
@@ -845,7 +849,7 @@ const ZSProvider = (() => {
   // BUMP this whenever qwen.js changes in a way worth verifying live.
   const QWEN_VER = "2026-07_per-model-vision3";
   function setVersionBeacon() {
-    try { document.documentElement.setAttribute("data-zs-qwen-ver", QWEN_VER); } catch {}
+    
   }
 
   // NOTE: an "⚠ unstable" badge used to be injected next to Qwen's "Auto"/"Think"

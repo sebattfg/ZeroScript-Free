@@ -944,7 +944,7 @@ const ZSProvider = (() => {
       if (d) diag = d;
       // Version beacon: stamp the loaded build onto <html> so a reload can be
       // confirmed from the page (read document.documentElement.dataset.zsGptVer).
-      try { document.documentElement.setAttribute("data-zs-gpt-ver", "2026-08-13_cmtap+toolkey"); } catch {}
+      
     },
     // turns
     allItems, isUserItem, isAssistantItem, itemText, classifyText,
