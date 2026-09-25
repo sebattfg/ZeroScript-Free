@@ -614,6 +614,14 @@ html.zs-site-meta .zs-hidden > .zs-chip {
    z-index is safe - it only matters once the active one's opacity flips to 1. */
 .kimi-tooltip { z-index: 2147483646 !important; }
 
+/* Kimi's login modal (.login-modal-next-mask, fixed at z-index 29) opened under
+   the bar, which then covered the phone field. Lift the whole mask above it. */
+.login-modal-next-mask { z-index: 2147483646 !important; }
+
+/* Kimi's new model picker is a body-level .kimi-menu-positioner at z-index 2000,
+   so the bar's buttons were drawn on top of its options. */
+.kimi-menu-positioner { z-index: 2147483646 !important; }
+
 /* GLM / Z.ai (bits-ui floating library) portals its composer-toolbar popovers -
    the Search / Advanced Search hover card, and similar tooltips/dropdowns - into
    a [data-bits-floating-content-wrapper] at z-index ~9999, far below #zs-root
