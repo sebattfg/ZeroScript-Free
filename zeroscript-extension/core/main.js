@@ -323,6 +323,9 @@
         tries++;
       }
       if (messageSent) diag("send.cleared", { tries });
+      // A later send went through: drop a stale "could not be sent" banner left
+      // by an earlier failed attempt (e.g. one blocked by the site's login modal).
+      if (messageSent || landed()) ui.clearBanner("send-failed");
       // All retries exhausted with NO evidence the message landed (textarea never
       // cleared, no new turn). Silently returning here left the loop waiting for
       // a reply that will never come (~60s "empty" timeout) with zero explanation
@@ -331,9 +334,10 @@
       // themselves instead of watching a stuck bar.
       if (!messageSent && !landed() && !A.stop) {
         diag("send.failed", { tries });
+        ui.clearBanner("send-failed");
         ui.banner("warn", "Message could not be sent",
           `${P.displayName} did not accept the injected message after ${tries} attempts. ` +
-          `Send a short message yourself (e.g. "continue") to resume the agent.`);
+          `Send a short message yourself (e.g. "continue") to resume the agent.`, "send-failed");
       }
       return base;
     } finally {
@@ -3722,9 +3726,10 @@
       setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 3500);
     }
 
-    function banner(kind, title, msg) {
+    function banner(kind, title, msg, tag) {
       const b = document.createElement("div");
       b.className = `zs-banner ${kind}`;
+      if (tag) b.dataset.zsTag = tag;
       b.innerHTML = `<div class="zs-banner-t"></div><div class="zs-banner-m"></div>
         <div class="zs-banner-acts">
           <button class="zs-banner-x">Close</button>
@@ -3733,6 +3738,10 @@
       b.querySelector(".zs-banner-m").textContent = msg;
       b.querySelector(".zs-banner-x").addEventListener("click", () => b.remove());
       root.appendChild(b);
+    }
+
+    function clearBanner(tag) {
+      root.querySelectorAll(`.zs-banner[data-zs-tag="${tag}"]`).forEach((e) => e.remove());
     }
 
     // Left-hand ZeroScript popup showing the latest screen_capture. Fed from the
@@ -3768,7 +3777,7 @@
     }
 
     build();
-    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
+    return { setStatus, staleExtensionAlert, setStarted, setStarting, showStop, markStopping, inputCover, toast, banner, clearBanner, showImages, nudgeStart, updateStartGate, refreshSetup, getCustomPrompt, getCustomMcpServers, openMenu: (toSupport) => openMenuFn && openMenuFn(toSupport) };
   })();
 
   // ── Live token + timer, shown ONLY on a tool call's chip detail. The
