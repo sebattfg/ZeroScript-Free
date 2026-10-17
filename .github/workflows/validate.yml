@@ -1,9 +1,16 @@
 name: Validate workspace agent
 
 on:
+  workflow_dispatch:
   push:
-    branches: ["master", "agent/workspace-foundation"]
+    branches:
+      - master
+      - agent/workspace-foundation
+      - agent/full-remaster-workspace-first
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   python-tests:
@@ -15,10 +22,26 @@ jobs:
           python-version: "3.12"
       - name: Install bridge dependency
         run: python -m pip install websockets
-      - name: Test workspace tools
-        run: python -m unittest workspace_agent.test_tools -v
+      - name: Test workspace tools and bridge
+        shell: pwsh
+        run: |
+          python -m unittest workspace_agent.test_tools workspace_agent.test_bridge -v 2>&1 | Tee-Object -FilePath workspace-test-results.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile Python
-        run: python -m compileall -q bridge.py workspace_agent
+        shell: pwsh
+        run: |
+          python -m compileall -q bridge.py workspace_agent 2>&1 | Tee-Object -FilePath python-compile-results.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Python diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-validation-logs-${{ github.run_id }}
+          path: |
+            workspace-test-results.txt
+            python-compile-results.txt
+          if-no-files-found: ignore
+
   extension-syntax:
     runs-on: ubuntu-latest
     steps:
@@ -26,13 +49,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Check extension JavaScript syntax
+      - name: Check extension JavaScript syntax and prompt behavior
+        shell: bash
         run: |
-          node --check zeroscript-extension/core/config.js
-          node zeroscript-extension/core/config.test.cjs
-          node --check zeroscript-extension/core/parser.js
-          node --check zeroscript-extension/core/main.js
-          node --check zeroscript-extension/background.js
-          node --check zeroscript-extension/popup.js
+          set -o pipefail
+          node --check zeroscript-extension/core/config.js 2>&1 | tee -a extension-test-results.txt
+          node zeroscript-extension/core/config.test.cjs 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/workspace.js 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/workspace-diagnostics.js 2>&1 | tee -a extension-test-results.txt
+          node zeroscript-extension/workspace-diagnostics.test.cjs 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/workspace-editor-utils.js 2>&1 | tee -a extension-test-results.txt
+          node zeroscript-extension/workspace-editor-utils.test.cjs 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/core/parser.js 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/core/main.js 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/background.js 2>&1 | tee -a extension-test-results.txt
+          node --check zeroscript-extension/popup.js 2>&1 | tee -a extension-test-results.txt
       - name: Validate extension manifest
-        run: node -e "JSON.parse(require('fs').readFileSync('zeroscript-extension/manifest.json','utf8'))"
+        shell: bash
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('zeroscript-extension/manifest.json','utf8'))" 2>&1 | tee -a extension-test-results.txt
+      - name: Upload extension diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-validation-logs-${{ github.run_id }}
+          path: extension-test-results.txt
+          if-no-files-found: ignore

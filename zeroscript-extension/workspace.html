@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>ZeroScript Workspace</title>
+  <link rel="stylesheet" href="workspace.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="icon.png" alt="" />
+        <div><strong>ZeroScript</strong><span>Workspace</span></div>
+      </div>
+      <div class="workspace-meta">
+        <span class="connection-dot" id="connectionDot"></span>
+        <span id="connectionLabel">Connecting to local bridge…</span>
+        <span class="meta-separator"></span>
+        <span id="projectName">No workspace selected</span>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button" id="chooseWorkspace" title="Choose project folder">Open Folder</button>
+        <button class="icon-button" id="recentWorkspaces" title="Switch to a recent project">Recent</button>
+        <button class="icon-button" id="refreshWorkspace" title="Refresh project">Refresh</button>
+      </div>
+    </header>
+
+    <div class="body-layout">
+      <nav class="activity-rail" aria-label="Activity">
+        <button class="activity-button active" data-view="explorer" title="Explorer" aria-label="Explorer">▤</button>
+        <button class="activity-button" data-view="search" title="Search" aria-label="Search">⌕</button>
+        <button class="activity-button" data-view="source" title="Source control" aria-label="Source control">⑂</button>
+        <button class="activity-button" data-view="project" title="Project info" aria-label="Project info">◈</button>
+        <div class="rail-spacer"></div>
+        <button class="activity-button" data-view="terminal" title="Terminal" aria-label="Terminal">›_</button>
+      </nav>
+
+      <aside class="side-panel">
+        <div class="side-heading">
+          <span id="sideTitle">EXPLORER</span>
+          <div class="side-heading-actions">
+            <button class="tiny-button" id="newFile" title="Create file">＋</button>
+            <button class="tiny-button" id="newFolder" title="Create folder">▱</button>
+            <button class="tiny-button" id="collapseTree" title="Return to workspace root">⌂</button>
+          </div>
+        </div>
+        <section id="explorerView" class="side-view">
+          <button class="root-row" id="rootRow">
+            <span class="chevron">⌄</span><span id="rootRowName">Workspace</span>
+          </button>
+          <div class="tree-toolbar">
+            <button id="treeUp">↑ Parent folder</button>
+            <button id="treeReload">↻</button>
+          </div>
+          <div id="fileTree" class="file-tree" aria-label="Project files">
+            <div class="empty-state">Connect the local bridge to load project files.</div>
+          </div>
+        </section>
+
+        <section id="searchView" class="side-view hidden">
+          <label class="field-label" for="searchPath">Folder scope <span class="field-muted">(relative to workspace)</span></label>
+          <input id="searchPath" placeholder=". (entire workspace) or src/" value="." autocomplete="off" spellcheck="false" />
+          <label class="field-label" for="searchQuery">Search in project</label>
+          <input id="searchQuery" placeholder="Text or regex pattern" autocomplete="off" />
+          <div class="inline-fields">
+            <label><input id="searchRegex" type="checkbox" /> Regex</label>
+            <label><input id="searchCase" type="checkbox" /> Match case</label>
+          </div>
+          <button class="small-primary" id="runSearch">Search files</button>
+          <div class="replace-section">
+            <div class="section-caption">REPLACE IN FILES</div>
+            <label class="field-label" for="replaceQuery">Replace with</label>
+            <input id="replaceQuery" placeholder="Replacement text" autocomplete="off" />
+            <div class="replace-actions">
+              <button class="panel-action" id="previewReplace">Preview Replace All</button>
+              <button class="panel-action" id="clearReplacePreview">Clear Preview</button>
+            </div>
+            <div id="replacePreview" class="replace-preview hidden"></div>
+            <button class="small-primary" id="applyReplace" disabled>Apply Replacement</button>
+            <p class="subtle">Preview first. Applying requires confirmation; files changed after preview are protected from stale replacements.</p>
+          </div>
+          <div id="searchResults" class="search-results"></div>
+        </section>
+
+        <section id="sourceView" class="side-view hidden">
+          <div class="section-caption">SOURCE CONTROL</div>
+          <button class="panel-action" id="loadGitStatus">↻ Refresh Git status</button>
+          <button class="panel-action" id="loadGitDiff">Show unstaged diff</button>
+          <button class="panel-action" id="loadStagedDiff">Show staged diff</button>
+          <button class="panel-action" id="loadGitBranches">List branches</button>
+          <div class="section-caption">CHANGED FILES</div>
+          <div id="gitChanges" class="git-changes"><div class="empty-state">Refresh Git status to list changed files.</div></div>
+          <div class="section-caption">SELECTED FILE</div>
+          <button class="panel-action" id="stageCurrentFile">＋ Stage Current File</button>
+          <button class="panel-action" id="unstageCurrentFile">− Unstage Current File</button>
+          <div class="section-caption">COMMIT STAGED CHANGES</div>
+          <label class="field-label" for="commitMessage">Commit message</label>
+          <input id="commitMessage" placeholder="Describe the staged change…" maxlength="500" />
+          <button class="small-primary" id="commitStaged">Create Local Commit</button>
+          <p class="subtle">Commit writes to the local repository only. It does not push to a remote.</p>
+          <div id="gitSummary" class="git-summary">No Git status loaded.</div>
+        </section>
+
+        <section id="projectView" class="side-view hidden">
+          <div class="section-caption">PROJECT OVERVIEW</div>
+          <button class="panel-action" id="loadProjectInfo">↻ Inspect project</button>
+          <div class="section-caption">ONE-CLICK TASKS</div>
+          <div id="taskList" class="task-list"><div class="empty-state">Inspect a project to discover available tasks.</div></div>
+          <div class="section-caption">PROJECT DETAILS</div>
+          <div id="projectSummary" class="project-summary">Project metadata has not been loaded yet.</div>
+        </section>
+
+        <section id="terminalView" class="side-view hidden">
+          <div class="section-caption">COMMAND RUNNER</div>
+          <p class="subtle">Commands run in the selected workspace without shell expansion. Use a JSON array of arguments.</p>
+          <label class="field-label" for="commandInput">Command argv</label>
+          <textarea id="commandInput" class="command-input" rows="4" spellcheck="false">["git","status","--short","--branch"]</textarea>
+          <label class="field-label" for="commandTimeout">Timeout (seconds)</label>
+          <input id="commandTimeout" type="number" min="1" max="300" value="60" />
+          <button class="small-primary" id="runCommand">Run command</button>
+          <p class="warning-note">Review commands before running them. Some commands can modify files, install packages, or access external services.</p>
+        </section>
+      </aside>
+
+      <main class="editor-area">
+        <div class="tab-strip">
+          <div id="openTabs" class="open-tabs"></div>
+          <div class="file-tab hidden" id="fileTab"><span class="file-tab-icon">◇</span><span id="activeFileName">Welcome</span><span class="dirty-dot hidden" id="dirtyDot"></span></div>
+          <div class="tab-strip-spacer"></div>
+          <button class="toolbar-button" id="findFileButton" title="Find or replace in the current file">Find <kbd>Ctrl+F</kbd></button>
+          <button class="toolbar-button" id="showOutline">Outline</button>
+          <button class="toolbar-button" id="showProjectInfo">Project Info</button>
+          <button class="toolbar-button" id="reloadFile" disabled>Reload</button>
+          <button class="toolbar-button" id="renamePath" disabled>Rename / Move</button>
+          <button class="toolbar-button" id="deleteFile" disabled>Delete</button>
+          <button class="toolbar-button" id="saveFile" disabled>Save <kbd>Ctrl+S</kbd></button>
+        </div>
+        <div class="breadcrumb" id="breadcrumb">ZeroScript / Workspace</div>
+        <section id="findBar" class="find-bar hidden" aria-label="Find and replace in current file">
+          <div class="find-line">
+            <input id="findText" placeholder="Find in current file" autocomplete="off" spellcheck="false" />
+            <label class="find-case" title="Match case"><input id="findMatchCase" type="checkbox" /> Aa</label>
+            <span id="findCount" class="find-count">0 / 0</span>
+            <button class="find-button" id="findPrevious" title="Previous match (Shift+Enter)">↑</button>
+            <button class="find-button" id="findNext" title="Next match (Enter)">↓</button>
+            <button class="find-button find-close" id="closeFind" title="Close find">×</button>
+          </div>
+          <div class="find-line find-replace-line">
+            <input id="replaceCurrentText" placeholder="Replace with" autocomplete="off" spellcheck="false" />
+            <button class="find-button" id="replaceCurrent" title="Replace selected match">Replace</button>
+            <button class="find-button" id="replaceAllCurrent" title="Replace all matches in this open buffer">All</button>
+          </div>
+        </section>
+        <div class="editor-host" id="editorHost">
+          <div class="welcome-screen" id="welcomeScreen">
+            <div class="welcome-symbol">Z</div>
+            <h1>Welcome to ZeroScript Workspace</h1>
+            <p>A focused local development surface paired with your AI agent.</p>
+            <div class="welcome-grid">
+              <button class="welcome-card" id="welcomeOpen"><strong>Open a folder</strong><span>Select the project ZeroScript should work in.</span><kbd>Choose Folder</kbd></button>
+              <button class="welcome-card" id="welcomeSearch"><strong>Search source</strong><span>Find text, symbols, imports, and declarations.</span><kbd>Search</kbd></button>
+              <button class="welcome-card" id="welcomeGit"><strong>Inspect Git</strong><span>Review status, branches, and file diffs.</span><kbd>Source Control</kbd></button>
+            </div>
+            <p class="subtle domain-note">Roblox Studio remains a separate adapter. This editor manages on-disk project files, not the live Studio DataModel.</p>
+          </div>
+          <div id="codeSurface" class="editor-surface hidden">
+            <div id="lineNumbers" class="line-numbers" aria-hidden="true">1</div>
+            <div class="code-pane">
+              <pre id="syntaxHighlight" class="syntax-highlight" aria-hidden="true"><code id="highlightCode"></code></pre>
+              <textarea id="codeEditor" class="code-editor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Source editor"></textarea>
+            </div>
+          </div>
+          <div id="infoView" class="info-view hidden"></div>
+        </div>
+        <section class="output-drawer" id="outputDrawer">
+          <div class="output-heading">
+            <div class="output-tabs">
+              <button class="output-tab active" data-output="output">OUTPUT</button>
+              <button class="output-tab" data-output="problems">PROBLEMS</button>
+            </div>
+            <button class="tiny-button" id="clearOutput" title="Clear output">×</button>
+          </div>
+          <div id="problemList" class="problem-list hidden" aria-label="Task diagnostics"></div>
+          <pre id="outputText" class="output-text">ZeroScript local workspace ready. Select a folder to begin.</pre>
+        </section>
+        <footer class="statusbar">
+          <span id="statusWorkspace">No workspace</span>
+          <span id="statusFile">No file open</span>
+          <span class="status-spacer"></span>
+          <span id="cursorStatus">Ln 1, Col 1</span>
+          <span id="encodingStatus">UTF-8</span>
+          <span id="eolStatus">CRLF</span>
+          <span id="languageStatus">Plain Text</span>
+        </footer>
+      </main>
+    </div>
+  </div>
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <section class="command-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="modal-header">
+        <div>
+          <div id="modalTitle" class="modal-title">Quick Open</div>
+          <div id="modalSubtitle" class="modal-subtitle">Search files in the selected workspace</div>
+        </div>
+        <kbd>ESC</kbd>
+      </header>
+      <input id="modalInput" class="modal-input" placeholder="Type a file path or command…" autocomplete="off" spellcheck="false" />
+      <div id="modalResults" class="modal-results" role="listbox"></div>
+      <footer class="modal-footer"><span>↑ ↓ Navigate</span><span>Enter Open</span><span>Esc Close</span></footer>
+    </section>
+  </div>
+  <script src="workspace-diagnostics.js"></script>
+  <script src="workspace-editor-utils.js"></script>
+  <script src="workspace-editor-utils.js"></script>
+  <script src="workspace-diagnostics.js"></script>
+  <script src="workspace-editor-utils.js"></script>
+  <script src="workspace-diagnostics.js"></script>
+  <script src="workspace.js"></script>
+</body>
+</html>

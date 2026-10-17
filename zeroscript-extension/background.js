@@ -51,6 +51,7 @@ let studioApp = null;
 // Assistant Settings > MCP Servers inside Studio (validated live 3x), which
 // "open Roblox Studio" wording completely fails to convey.
 let studioProc = null;
+let workspaceCache = null;
 
 function log(...a) {
   console.log("[zs-bg]", ...a);
@@ -208,6 +209,9 @@ async function refreshStudioStatus() {
 }
 
 function handleBridgeMessage(msg) {
+  if (msg.workspace && typeof msg.workspace === "object") {
+    workspaceCache = msg.workspace;
+  }
   if ("studio" in msg && (typeof msg.studio === "boolean" || msg.studio === null)) {
     studioConnected = msg.studio;
   }
@@ -286,7 +290,7 @@ function failAllPending(reason) {
 
 // ── status push to any open DeepSeek tab + popup ─────────────────────────
 function statusObj() {
-  return { type: "zs-status", connected, mcpAlive, studio: studioConnected, studioApp, studioProc, tools: toolsCache.length, servers: serversCache };
+  return { type: "zs-status", connected, mcpAlive, studio: studioConnected, studioApp, studioProc, tools: toolsCache.length, servers: serversCache, workspace: workspaceCache };
 }
 
 function broadcastStatus() {

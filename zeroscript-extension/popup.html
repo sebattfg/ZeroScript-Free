@@ -1,38 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZeroScript-Win</title>
   <style>
-    body { width: 248px; margin: 0; font-family: "Segoe UI", sans-serif; background: #16161a; color: #e8e8ec; }
-    .wrap { padding: 14px; }
-    h1 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-    .ver { font-size: 9.5px; font-weight: 500; letter-spacing: 0.2px;
-           color: rgba(255,255,255,0.55); background: none; border: none;
-           padding: 0; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7280; }
-    .dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
-    .dot.warn { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
-    .row { font-size: 12px; opacity: 0.85; margin: 6px 0; }
-    button { width: 100%; margin-top: 8px; padding: 8px; border: 0; border-radius: 8px; cursor: pointer; font-size: 12px; }
-    .ghost { background: rgba(255,255,255,0.08); color: #e8e8ec; }
-    .kofi { background: rgba(255,105,135,.16); color: #ff8fa3; border: 1px solid rgba(255,105,135,.4) !important; font-weight: 700; }
-    code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
+    :root { color-scheme: dark; font-family: "Segoe UI Variable", "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { width: 360px; max-height: 600px; margin: 0; overflow-y: auto; color: #e8edf6; background: #0a0d13; }
+    button { font: inherit; cursor: pointer; transition: background .15s ease, border-color .15s ease, transform .15s ease; }
+    button:disabled { opacity: .55; cursor: progress; }
+    .wrap { padding: 18px; background: radial-gradient(ellipse at top left, rgba(78, 104, 167, .17), transparent 55%); }
+    .header { display: flex; align-items: center; gap: 11px; margin-bottom: 18px; }
+    .logo { width: 36px; height: 36px; object-fit: contain; padding: 6px; border: 1px solid #29354b; border-radius: 11px; background: #121925; }
+    .brand { min-width: 0; flex: 1; }
+    h1 { margin: 0; font-size: 14px; font-weight: 650; letter-spacing: -.15px; }
+    .subtitle { margin-top: 3px; font-size: 11px; color: #8b98ad; }
+    .version { padding: 4px 7px; border: 1px solid #29354b; border-radius: 7px; color: #94a7c6; font-size: 10px; }
+    .status { display: flex; align-items: center; gap: 9px; padding: 11px 12px; border: 1px solid #252e3e; border-radius: 11px; background: rgba(20, 27, 39, .82); }
+    .dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #687386; }
+    .dot.on { background: #4adea1; box-shadow: 0 0 10px rgba(74, 222, 161, .38); }
+    .dot.warn { background: #f7be61; box-shadow: 0 0 9px rgba(247, 190, 97, .28); }
+    .status-copy { min-width: 0; flex: 1; }
+    .status-title { font-size: 12px; font-weight: 600; }
+    .status-detail { margin-top: 3px; font-size: 10px; color: #8b98ad; }
+    .section-label { margin: 20px 0 8px; color: #7f8ba0; font-size: 9px; font-weight: 750; letter-spacing: 1.2px; text-transform: uppercase; }
+    .card { padding: 13px; border: 1px solid #293245; border-radius: 12px; background: #111722; }
+    .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .card-title { font-size: 12px; font-weight: 650; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 6px; color: #b5c3db; background: #1b2738; font-size: 9px; font-weight: 650; white-space: nowrap; }
+    .badge.ready { color: #80e0b3; background: rgba(27, 104, 76, .22); }
+    .root { color: #dfe7f5; font-family: Consolas, "Cascadia Code", monospace; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; user-select: text; }
+    .hint { margin-top: 7px; color: #8c9ab0; font-size: 10px; line-height: 1.45; }
+    .primary { width: 100%; margin-top: 12px; padding: 10px 12px; border: 1px solid #7193ef; border-radius: 9px; color: white; background: #4569c8; font-size: 11px; font-weight: 650; }
+    .primary:hover { background: #5379dc; border-color: #9bb4ff; }
+    .integration { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; border: 1px solid #252e3e; border-radius: 10px; background: rgba(17, 23, 34, .78); }
+    .integration-icon { display: grid; place-items: center; width: 29px; height: 29px; flex: 0 0 29px; border: 1px solid #394054; border-radius: 9px; background: #192130; color: #aab8d0; font-size: 14px; }
+    .integration-copy { min-width: 0; flex: 1; }
+    .integration-title { font-size: 11px; font-weight: 650; }
+    .integration-sub { margin-top: 4px; color: #8c9ab0; font-size: 10px; line-height: 1.45; }
+    .integration-status { margin-top: 7px; color: #aab6c9; font-size: 10px; }
+    .integration-status strong { color: #e1e8f4; font-weight: 600; }
+    .tools-row { display: flex; justify-content: space-between; margin: 11px 2px 0; color: #8592a8; font-size: 10px; }
+    .tools-row strong { color: #ced8e8; font-weight: 600; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 17px; }
+    .secondary { min-width: 0; padding: 9px 8px; border: 1px solid #2c374a; border-radius: 9px; color: #d4dceb; background: #151c28; font-size: 10px; font-weight: 600; }
+    .secondary:hover { border-color: #465b7d; background: #1a2534; }
+    .wide { grid-column: 1 / -1; }
+    .kofi { color: #ffb2c0; border-color: rgba(255, 105, 135, .32); background: rgba(130, 38, 63, .14); }
+    .kofi:hover { background: rgba(130, 38, 63, .27); }
+    .footer { margin-top: 15px; color: #657187; font-size: 9px; line-height: 1.5; text-align: center; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1><span id="dot" class="dot"></span> ZeroScript-Win <span id="ver" class="ver"></span> <span style="font-size:9px;opacity:.6">Coding Agent</span></h1>
-    <div class="row" id="state">Bridge: …</div>
-    <div class="row" id="tools"></div>
-    <div class="row" id="servers" style="white-space:pre-line; font-family:ui-monospace,monospace; opacity:0.75"></div>
-    <button class="ghost" id="reconnect">↻ Reconnect bridge</button>
-    <button class="ghost" id="restart">⟳ Restart MCP servers</button>
-    <button class="ghost" id="settings">⚙ Settings</button>
-    <button class="kofi" id="kofi">♥ Tip the developer on Ko-fi</button>
-    <div class="row" style="margin-top:10px; opacity:0.6">
-      Run <code>start.bat</code>, select a project workspace, then use a supported AI chat site.
+  <main class="wrap">
+    <header class="header">
+      <img class="logo" src="icon.png" alt="" />
+      <div class="brand">
+        <h1>ZeroScript-Win</h1>
+        <div class="subtitle">Local-first AI development environment</div>
+      </div>
+      <span id="ver" class="version"></span>
+    </header>
+
+    <section class="status" aria-live="polite">
+      <span id="dot" class="dot"></span>
+      <div class="status-copy">
+        <div id="state" class="status-title">Checking bridge…</div>
+        <div id="stateDetail" class="status-detail">Local connection status</div>
+      </div>
+    </section>
+
+    <div class="section-label">Workspace</div>
+    <section class="card">
+      <div class="card-heading">
+        <div class="card-title">Project folder</div>
+        <span id="workspaceBadge" class="badge">Checking</span>
+      </div>
+      <div id="workspaceRoot" class="root">Waiting for bridge status…</div>
+      <div id="workspaceHint" class="hint">Your coding agent operates inside this folder. The path is saved locally on this computer.</div>
+      <button id="chooseWorkspace" class="primary">Choose workspace folder</button>
+    </section>
+
+    <div class="section-label">Separate integrations</div>
+    <section class="integration">
+      <div class="integration-icon">⌘</div>
+      <div class="integration-copy">
+        <div class="integration-title">General development</div>
+        <div class="integration-sub">Files, source search, symbol lookup, project metadata, Git, and command execution. Scoped to the selected local workspace.</div>
+        <div class="integration-status"><strong id="toolCount">—</strong> workspace and integration tools</div>
+      </div>
+      <span class="badge ready">Local</span>
+    </section>
+    <section class="integration" style="margin-top:8px">
+      <div class="integration-icon">◇</div>
+      <div class="integration-copy">
+        <div class="integration-title">Roblox Studio adapter</div>
+        <div class="integration-sub">A separate <code>roblox/</code> tool namespace for live Studio/DataModel operations. It is optional and never treated as the local filesystem.</div>
+        <div id="robloxStatus" class="integration-status">Studio connection not checked</div>
+      </div>
+      <span id="robloxBadge" class="badge">Optional</span>
+    </section>
+
+    <div id="servers" class="tools-row"></div>
+
+    <div class="actions">
+      <button class="secondary" id="reconnect">↻ Reconnect bridge</button>
+      <button class="secondary" id="restart">⟳ Restart MCP servers</button>
+      <button class="secondary wide" id="openExplorer">⌘ Open Workspace Explorer</button>
+      <button class="secondary wide" id="settings">⚙ Agent settings</button>
+      <button class="secondary kofi wide" id="kofi">♥ Support development</button>
     </div>
-  </div>
+    <div class="footer">Run <code>start.bat</code> to launch the local bridge. Workspace selection does not require Roblox Studio.</div>
+  </main>
   <script src="popup.js"></script>
 </body>
 </html>
