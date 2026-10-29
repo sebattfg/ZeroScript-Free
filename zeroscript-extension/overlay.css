@@ -1019,3 +1019,51 @@ html.zs-light .zs-tip-sub,
 html.zs-light .zs-rbx-cur,
 html.zs-light .zs-tip-sep { color: #6b7280; }
 html.zs-light .zs-tip-rbx { color: #374151; }
+
+/* ── <ds_safety> blocks rendered as framed warnings (providers/ds-safety.js) ── */
+.zs-safety-src { display: none !important; }
+.zs-safety-wrap { margin: 10px 0; }
+.zs-safety-plain { margin: 6px 0; white-space: pre-wrap; }
+.zs-safety,
+ds_safety {
+  display: block;
+  box-sizing: border-box;
+  margin: 8px 0;
+  padding: 0;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.09);
+  color: inherit;
+  overflow: hidden;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+.zs-safety-head,
+ds_safety::before {
+  display: block;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.20);
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.85em;
+  letter-spacing: 0.02em;
+}
+ds_safety::before { content: attr(data-zs-title); }
+.zs-safety-body {
+  padding: 9px 12px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+ds_safety { padding-bottom: 8px; white-space: pre-wrap; }
+ds_safety > * { margin-left: 12px; margin-right: 12px; }
+.zs-safety-open .zs-safety-body::after {
+  content: "▍";
+  opacity: 0.6;
+  animation: zs-safety-blink 1s steps(2) infinite;
+}
+@keyframes zs-safety-blink { 50% { opacity: 0; } }
+html.zs-light .zs-safety-head,
+html.zs-light ds_safety::before { color: #b45309; }
+html.zs-light .zs-safety,
+html.zs-light ds_safety { background: rgba(245, 158, 11, 0.12); }

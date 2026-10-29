@@ -4404,5 +4404,117 @@
     }
   }, 5000);
 
+  // ── Rate-limit recovery ("Messages too frequent. Try again later.") ───────
+  // DeepSeek throttles bursts of messages and answers with that notice instead of
+  // a reply, which strands the agent loop. When the NEWEST message of the chat
+  // carries it (provider hook P.rateLimitShown, DeepSeek only) we:
+  //   1. stop the loop and DISCONNECT from the local bridge (background keeps the
+  //      socket down on purpose until the page is back),
+  //   2. wait a cooldown (grows with consecutive hits) and RELOAD the page,
+  //   3. after the reload: reconnect to the bridge, wait until the session is
+  //      ready, then send a short "continue" note and restart the agent loop.
+  // State survives the reload in chrome.storage.local (zsRateLimitResume).
+  const RL_KEY = "zsRateLimitResume";
+  const RL_DELAY_MS = 0;            // no cooldown: disconnect → reload → reconnect at once
+  const RL_MAX_ATTEMPTS = 12;       // consecutive hits within the window before giving up
+  const RL_ATTEMPT_WINDOW_MS = 600000; // hits closer than this count as consecutive
+  const RL_PENDING_TTL_MS = 900000;    // a pending resume older than this is dropped
+  const RL_READY_TIMEOUT_MS = 180000;
+  const RL_CONTINUE_TEXT =
+    "(System note: the chat site briefly rate-limited this conversation (\"Messages too frequent\") " +
+    "and the page was reloaded. Continue exactly where you left off. If your last command did not " +
+    "run or you never received its result, send that command again.)";
+  let rlBusy = false;          // a recovery is in flight → don't detect again
+  let rlStaleKey = null;       // id of a notice restored by the reload (ignore it)
+  let rlCooldownUntil = 0;     // toast notices have no id → time-based guard
+  const rlGet = () => new Promise((res) => {
+    try { chrome.storage.local.get(RL_KEY, (r) => res((r && r[RL_KEY]) || null)); } catch { res(null); }
+  });
+  const rlSet = (v) => new Promise((res) => {
+    try { chrome.storage.local.set({ [RL_KEY]: v }, () => res()); } catch { res(); }
+  });
+
+  async function rateLimitRecover(hit) {
+    if (rlBusy) return;
+    rlBusy = true;
+    const prev = await rlGet();
+    const now = Date.now();
+    const attempts = prev && now - (prev.at || 0) < RL_ATTEMPT_WINDOW_MS ? (prev.attempts || 1) + 1 : 1;
+    const delay = RL_DELAY_MS;
+    diag("rateLimit.detected", { where: hit && hit.where, attempts, delay });
+    A.stop = true; // wind the agent loop down; never send into the limit
+    if (attempts > RL_MAX_ATTEMPTS) {
+      // Runaway guard: the notice keeps coming straight back after every reload.
+      try {
+        ui.banner("warn", `${P.displayName} rate limit`,
+          `"Messages too frequent" came back ${attempts - 1} times in a row - auto-recovery paused. ` +
+          `Wait a bit, then reload the page and send "continue".`);
+      } catch {}
+      await rlSet({ key: P.conversationKey(), at: now, attempts: 0, done: true });
+      return; // rlBusy stays true: no further automatic attempts on this page
+    }
+    try {
+      ui.banner("warn", `${P.displayName} rate limit`,
+        `"Messages too frequent" - disconnecting from the bridge, reloading and continuing automatically.`);
+    } catch {}
+    await rlSet({ key: P.conversationKey(), at: now, attempts, done: false });
+    try { await bg({ type: "disconnect" }); } catch {}
+    setTimeout(() => { diag("rateLimit.reload", {}); location.reload(); }, delay);
+  }
+
+  if (P.rateLimitShown) {
+    setInterval(() => {
+      if (rlBusy || A.staleExtension) return;
+      if (!A.started && !A.running) return;           // only inside an agent session
+      if (Date.now() < rlCooldownUntil) return;
+      const hit = P.rateLimitShown();
+      if (!hit) return;
+      if (hit.key != null && hit.key === rlStaleKey) return; // restored by the reload
+      rateLimitRecover(hit);
+    }, 1000);
+
+    // After a reload triggered above: reconnect, wait for readiness, continue.
+    (async () => {
+      const pend = await rlGet();
+      if (!pend || pend.done) return;
+      if (Date.now() - (pend.at || 0) > RL_PENDING_TTL_MS || pend.key !== P.conversationKey()) {
+        await rlSet({ ...pend, done: true });
+        return;
+      }
+      rlBusy = true; // no new detection until the continue message is out
+      diag("rateLimit.resume.start", { attempts: pend.attempts });
+      try { await bg({ type: "reconnect" }); } catch {}
+      const t0 = Date.now();
+      let ready = false;
+      while (Date.now() - t0 < RL_READY_TIMEOUT_MS) {
+        const st = await bg({ type: "status" });
+        if (st && st.kind === "stale-extension") break;
+        if (st && st.connected && A.started && !A.running && !A.starting && !A.injecting &&
+            !document.hidden && !P.isGenerating() && P.getEditor()) { ready = true; break; }
+        await sleep(1000);
+      }
+      if (!ready) {
+        diag("rateLimit.resume.notReady", {});
+        await rlSet({ ...pend, done: true });
+        rlBusy = false;
+        return;
+      }
+      // A notice restored by the reload must not trigger another reload.
+      try { const h = P.rateLimitShown(); rlStaleKey = h ? h.key : null; } catch {}
+      rlCooldownUntil = Date.now() + 20000;
+      await rlSet({ ...pend, done: true });
+      try {
+        A.userStopped = false;
+        const base = await submitAndGetBase(RL_CONTINUE_TEXT);
+        diag("rateLimit.resume.sent", { base });
+        rlBusy = false;
+        agentLoop(base);
+      } catch (e) {
+        diag("rateLimit.resume.failed", { err: String(e && e.message || e) });
+        rlBusy = false;
+      }
+    })();
+  }
+
   log(`ZeroScript content script ready (provider: ${P.id})`);
 })();

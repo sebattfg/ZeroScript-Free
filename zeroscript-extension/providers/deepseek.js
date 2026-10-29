@@ -73,6 +73,8 @@ const ZSProvider = (() => {
       "i"
     ),
     tooLong: /conversation .{0,20}(too long|getting too long|trop longue)/i,
+    // DeepSeek's throttle notice ("Messages too frequent. Try again later.").
+    rateLimit: /messages?\s+too\s+frequent|too\s+many\s+(messages|requests)\s*[.,]?\s*try\s+again\s+later/i,
     busy: /server is busy|serveur est occup|please try again|réessayer plus tard|system is currently busy/i,
     continueBtn: /^(continue|continuer|继续(生成)?|fortfahren|continuar|seguir|続行)$/i,
     stopped: /(arrêté|arrété|stopped|已停止|停止生成|已暂停)/i,
@@ -745,6 +747,56 @@ const ZSProvider = (() => {
   const isTooLongMsg = (text) => RE.tooLong.test(text);
   const isBusyMsg = (text) => RE.busy.test(text);
 
+  // "Messages too frequent. Try again later." in the NEWEST message of the chat.
+  // Returns { where, key } or null.
+  //
+  // Validated against a live DOM capture (2026-10): the site renders this notice
+  // NOT as a .ds-message turn but as a bare leaf <span> inside a sibling wrapper
+  // (<div class=hashed><div class=hashed><span class=hashed>Messages too frequent…)
+  // that lives in the SAME virtual-list item as the user turn it answered
+  // ([data-virtual-list-item-key], negative key = client-side placeholder). So we
+  // look at the LAST virtual-list item of the chat and test its short leaf
+  // elements - never hashed class names, which change on every redeploy.
+  // `key` = that item's virtual-list key, so the core can tell a NEW notice from
+  // one restored by a page reload. Only short leaf texts count: a long reply
+  // that merely quotes the phrase is not the site's notice.
+  function rateLimitShown() {
+    try {
+      const vitems = document.querySelectorAll("[data-virtual-list-item-key]");
+      const lastV = vitems.length ? vitems[vitems.length - 1] : null;
+      const hitIn = (root) => {
+        for (const el of root.querySelectorAll("span, p, div")) {
+          if (el.children.length) continue;                 // leaf elements only
+          if (el.closest(".zs-hidden, .zs-chip, #zs-root")) continue; // our own UI
+          const t = (el.textContent || "").trim();
+          if (t.length > 0 && t.length < 200 && RE.rateLimit.test(t)) return true;
+        }
+        return false;
+      };
+      if (lastV && hitIn(lastV)) {
+        return { where: "message", key: String(lastV.getAttribute("data-virtual-list-item-key")) };
+      }
+      // Fallback: the newest .ds-message turn itself (older/other DOM shapes).
+      const items = allItems();
+      const last = items[items.length - 1];
+      if (last && !last.classList.contains("zs-hidden")) {
+        const t = (last.textContent || "").trim();
+        if (t.length > 0 && t.length < 400 && RE.rateLimit.test(t)) {
+          let key = null;
+          try { key = itemKey(last); } catch {}
+          return { where: "message", key: key == null ? null : String(key) };
+        }
+      }
+      // Fallback: a toast popped up for the same condition.
+      for (const el of document.querySelectorAll('.ds-toast, [class*="toast" i], [role="alert"]')) {
+        if (el.closest("#zs-root")) continue;
+        const t = (el.textContent || "").trim();
+        if (t.length > 0 && t.length < 200 && RE.rateLimit.test(t)) return { where: "toast", key: null };
+      }
+    } catch {}
+    return null;
+  }
+
   // ── Image attachment (Studio captures → composer) ────────────────────────
   function fileFromImage(img, i) {
     const mime = img.mimeType || "image/jpeg";
@@ -984,7 +1036,7 @@ const ZSProvider = (() => {
     isGenerating, isBusyNow, isHardGenerating, genDebug,
     enforceComposer, ensureComposerReady,
     turnHalted, findContinueBtn, clickContinueBtn,
-    scanError, isTooLongMsg, isBusyMsg,
+    scanError, isTooLongMsg, isBusyMsg, rateLimitShown,
     // actions
     attachImages, clearAttachments, conversationKey,
     installSendHooks, findToolBlockSpot,

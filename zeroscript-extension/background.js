@@ -52,12 +52,21 @@ let studioApp = null;
 // "open Roblox Studio" wording completely fails to convey.
 let studioProc = null;
 
+// Deliberate disconnect requested by a content script (DeepSeek "Messages too
+// frequent" recovery). While set, connect() is a no-op so the socket stays down
+// until the page has reloaded and asks for "reconnect". Auto-expires so a page
+// that never comes back can't leave the bridge offline for good.
+const SUSPEND_MAX_MS = 180000;
+let suspended = false;
+let suspendTimer = null;
+
 function log(...a) {
   console.log("[zs-bg]", ...a);
 }
 
 // ── WebSocket lifecycle ─────────────────────────────────────────────────
 function connect() {
+  if (suspended) return;
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
@@ -343,10 +352,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         break;
       }
       case "reconnect":
+        suspended = false;
+        clearTimeout(suspendTimer);
         reconnectDelay = RECONNECT_MIN;
         connect();
         sendResponse({ ok: true });
         break;
+      case "disconnect": {
+        // Drop the bridge socket on purpose and keep it down (see `suspended`).
+        suspended = true;
+        clearTimeout(reconnectTimer);
+        clearTimeout(suspendTimer);
+        suspendTimer = setTimeout(() => {
+          suspended = false;
+          reconnectDelay = RECONNECT_MIN;
+          connect();
+        }, SUSPEND_MAX_MS);
+        try { if (ws) ws.close(1000, "client requested disconnect"); } catch {}
+        connected = false;
+        failAllPending("bridge disconnected on purpose");
+        broadcastStatus();
+        log("bridge disconnected on purpose");
+        sendResponse({ ok: true });
+        break;
+      }
       default:
         sendResponse({ ok: false, error: "unknown message" });
     }

@@ -73,3 +73,12 @@ Both print `PASS`/`FAIL` per case and exit non-zero on failure.
 ## Support
 
 ☕ [Ko-fi](https://ko-fi.com/sebattfg) - Robux tip passes available in the extension panel
+
+
+## DeepSeek rate-limit auto-recovery (1.5.6, detection fixed in 1.5.7)
+
+If DeepSeek's newest message is `Messages too frequent. Try again later.`, ZeroScript stops the agent loop, disconnects the extension from the bridge, reloads the page immediately (no waiting; gives up after 12 consecutive hits within 10 min), reconnects to the bridge, sends a short hidden "continue" note and restarts the agent loop. Tunable constants (`RL_*`) are at the end of `core/main.js`.
+
+## `<ds_safety>` blocks (1.5.8)
+
+On DeepSeek, `<ds_safety>…</ds_safety>` in an assistant reply is shown as a framed amber warning box (`providers/ds-safety.js`, styles at the end of `overlay.css`) instead of raw tag text. Works while the reply is still streaming.
