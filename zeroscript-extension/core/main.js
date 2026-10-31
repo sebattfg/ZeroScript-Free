@@ -18,19 +18,80 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const log = (...a) => console.log("[zeroscript]", ...a);
 
-  // ── Anti-bot mitigation (EXPERIMENTAL) ──────────────────────────────────
-  // Suspected contributor to Arena's captcha: the agentic loop sends turns
-  // back-to-back with near-zero, perfectly regular delay (~200ms settle),
-  // which behavioral risk-scoring (reCAPTCHA/Cloudflare) can read as a bot
-  // signal alongside the necessarily-synthetic input events. This adds a
-  // small randomized human-reaction-time delay before each send.
-  // REVERT: flip HUMANIZE_SEND to false - single toggle, no other changes needed.
-  const HUMANIZE_SEND = false; // didn't prevent Arena's captcha (fires on turn 1 already) - revert
-  const SEND_JITTER_MS = [400, 1400]; // [min, max] ms, randomized per send
-  function jitterBeforeSend() {
-    if (!HUMANIZE_SEND) return Promise.resolve();
+  // ── Human-paced sends (RNG pause before every injection) ────────────────
+  // The agentic loop used to send turns back-to-back with a near-zero,
+  // perfectly regular delay (~200ms settle). Two problems with that: the
+  // site's own frequency cap answers "Messages too frequent. Try again
+  // later" once a session gets going, and behavioral risk-scoring
+  // (reCAPTCHA/Cloudflare, Arena's captcha) reads the machine-gun rhythm as
+  // a bot signal. Every send therefore waits a RANDOM human-reaction-time
+  // pause first, uniformly drawn from 3.389s to 16.82s (the recommended
+  // working range), so the gap between two messages is never regular and
+  // never sub-10s-by-default. REVERT: flip HUMANIZE_SEND to false - single
+  // toggle, no other changes needed.
+  const HUMANIZE_SEND = true;
+  const SEND_JITTER_MS = [3389, 16820]; // [min, max] ms, uniform RNG per send
+  async function jitterBeforeSend() {
+    if (!HUMANIZE_SEND || A.stop) return;
     const [lo, hi] = SEND_JITTER_MS;
-    return sleep(lo + Math.random() * (hi - lo));
+    const waitMs = lo + Math.random() * (hi - lo);
+    diag("send.jitter", { waitMs: Math.round(waitMs) });
+    // Sleep in small slices so a user Stop cuts the pause short instead of
+    // holding the "Agent is working" state for up to ~17s after the click.
+    const until = Date.now() + waitMs;
+    while (Date.now() < until && !A.stop) {
+      await sleep(Math.min(150, until - Date.now()));
+    }
+  }
+
+  // ── Rate-limit cutoff ("Messages too frequent. Try again later") ────────
+  // When the site refuses a turn because messages come too fast, the OLD
+  // behaviour re-sent the SAME injection back-to-back (up to 4 tries, jitter
+  // disabled) and the auto-resume watchdog could re-fire the turn after that
+  // - an "assault rifle" of identical sends that only digs the rate limit in
+  // deeper. This is the automatic cutoff instead: the first sighting of the
+  // site's rate-limit wording (a refusal toast caught after a failed send,
+  // or the refusal rendered as a reply turn) latches a cooldown during which
+  // NOTHING is sent automatically - no retries, no watchdog resume, no
+  // system-prompt re-injection. The loop ends with a banner and the user
+  // resumes with one short manual message.
+  const RATE_LIMIT_RE = /(?:messages?[^.\n]{0,40}too frequent|too frequent[^.\n]{0,40}(?:try again|later)|too many messages|send[^.\n]{0,20}too (?:fast|quickly|often)|发送过于频繁|消息[^.\n]{0,12}频繁|过于频繁|请稍后再试|слишком (?:часто|много сообщений))/i;
+  const RATE_LIMIT_RETRY_RE = /(?:try again|please wait|wait a|a few seconds|a minute|稍后再试|请稍后|повторите|позже|plus tard)/i;
+  // Tight test: BOTH the frequency wording AND the retry wording must appear
+  // in the same short text, so the model's own prose quoting one of them
+  // ("the API says messages are too frequent...") can never trip it alone.
+  const isRateLimitText = (t) =>
+    !!t && RATE_LIMIT_RE.test(t) && RATE_LIMIT_RETRY_RE.test(t);
+  const RATELIMIT_COOLDOWN_MS = 120000; // auto-sends stay cut off for 2 min
+  let rateLimitUntil = 0;
+  const rateLimitActive = () => Date.now() < rateLimitUntil;
+  function tripRateLimit(where) {
+    if (rateLimitActive()) return; // idempotent during one cooldown window
+    rateLimitUntil = Date.now() + RATELIMIT_COOLDOWN_MS;
+    diag("ratelimit.trip", { where, cooldownMs: RATELIMIT_COOLDOWN_MS });
+    // Banner wording deliberately avoids every RATE_LIMIT_* trigger phrase
+    // (this text lands in the DOM, and pageRateLimitText scans the page).
+    ui.banner("warn", `${P.displayName} is rate-limiting this chat`,
+      `${P.displayName} refused the agent's message (frequency limit). ZeroScript ` +
+      `cut off instead of re-sending the same text over and over. Let the ` +
+      `limit clear, then send a short message yourself (e.g. "continue") to ` +
+      `resume the agent.`);
+  }
+  // Where can the refusal be READ? Some sites render it as a turn, most show
+  // a transient toast - document.body.innerText covers both. Only called
+  // right after a FAILED send or on a short settled reply, never in a hot
+  // loop, so the forced reflow of innerText is fine.
+  function pageRateLimitText() {
+    try {
+      const it = P.lastAssistant();
+      if (it) {
+        const t = P.itemText ? P.itemText(it) : (it.textContent || "");
+        if (isRateLimitText(t)) return t;
+      }
+      const body = (document.body && document.body.innerText) || "";
+      if (isRateLimitText(body)) return body;
+    } catch {}
+    return "";
   }
 
   // ── Diagnostics ───────────────────────────────────────────────────────────
@@ -298,6 +359,12 @@
       let tries = 0;
       let messageSent = false;
       while (!messageSent && !landed() && tries < 4 && !A.stop) {
+        // CUTOFF: a previous attempt already tripped the rate-limit latch
+        // ("Messages too frequent. Try again later"). Re-sending the same
+        // text again would be exactly the hammering the cutoff exists to
+        // prevent - leave the text in the composer for the user to send by
+        // hand once the limit clears.
+        if (rateLimitActive()) { diag("send.cutOff", { tries }); break; }
         if (document.hidden) {
           diag("send.waitVisible", { tries });
           if (!(await waitVisible()) || A.stop) break; // park (no cap) until foreground; break only on user stop
@@ -321,6 +388,17 @@
           return messageSent || landed();
         }, 3500);
         tries++;
+        // The attempt did NOT land (textarea never cleared, no new turn). If the
+        // site is showing its rate-limit wording, cut off NOW - the old code
+        // re-typed and re-clicked the same message up to 4 times with zero gap,
+        // which is what turned one refusal into a barrage. Also cut off after
+        // two consecutive refusals even without readable wording: two spaced,
+        // rejected sends are refusal enough, and each further retry only feeds
+        // the frequency counter.
+        if (!messageSent && !landed() && !A.stop) {
+          if (pageRateLimitText()) { tripRateLimit("send.refused"); break; }
+          if (tries >= 2) { tripRateLimit("send.noLand"); break; }
+        }
       }
       if (messageSent) diag("send.cleared", { tries });
       // All retries exhausted with NO evidence the message landed (textarea never
@@ -329,7 +407,7 @@
       // - the reported "the tool result just never gets injected" symptom. Tell
       // the user what actually happened so they can nudge the conversation
       // themselves instead of watching a stuck bar.
-      if (!messageSent && !landed() && !A.stop) {
+      if (!messageSent && !landed() && !A.stop && !rateLimitActive()) {
         diag("send.failed", { tries });
         ui.banner("warn", "Message could not be sent",
           `${P.displayName} did not accept the injected message after ${tries} attempts. ` +
@@ -353,6 +431,11 @@
   //  RESPONSE WATCHER  (generating-flag driven - robust to DOM churn)
   // ════════════════════════════════════════════════════════════════════════
   async function waitForResponse(base) {
+    // A rate-limit cutoff tripped while the caller was sending (or on an
+    // earlier turn): do NOT sit out the full RESPONSE_TIMEOUT waiting for a
+    // reply to a message the site refused - end the turn immediately. The
+    // agent loop turns this kind into a clean stop; the banner is already up.
+    if (rateLimitActive()) return { kind: "rate_limited" };
     const t0 = Date.now();
     // INACTIVITY timeout (not total-elapsed): the loop only gives up after this
     // long with NO streaming AND no text change. lastActiveAt is refreshed every
@@ -614,6 +697,16 @@
       // messages; gating on a short reply stops the model's own long output
       // (which may quote those phrases) from tripping them.
       if (r.length < 400 && P.isTooLongMsg(r)) return { kind: "too_long" };
+      // The site's own frequency cap, rendered as a REPLY TURN ("Messages too
+      // frequent. Try again later" and localised variants): cut off instead of
+      // ending the loop as a silent "final answer" the user must notice and
+      // decode. Tight wording only (see isRateLimitText) - the broad per-site
+      // busy regexes also match the model's own prose ("...then please try
+      // again"), which must keep ending the loop as a normal text turn.
+      if (r.length < 400 && isRateLimitText(r)) {
+        tripRateLimit("reply");
+        return { kind: "rate_limited" };
+      }
       // Hold off on any "unparseable command" verdict while the provider reports
       // this turn's text is not yet a settled read. Qwen's A/B "dual" turn is the
       // case: its network tap flips `done` the instant the SSE ends, but the
@@ -907,16 +1000,16 @@
       // Only reachable via a user Stop while parked; agentLoop's post-runTool
       // A.stop check breaks the loop and discards this, so it just needs to be
       // a non-crashing, clearly-labelled string.
-      if (!(await waitVisible()) || A.stop) return "ERROR: the command was not run - stopped by the user.";
+      if (!(await waitVisible()) || A.stop) return `${ZS.ERR_LEAD} the command was not run - stopped by the user.`;
     }
     // Blocked commands: refuse up-front with a clear, tailored error so the
     // model abandons it and continues instead of wasting/hanging a turn.
     const bareName = bareToolName(name);
     if (isBlockedTool(name)) {
       if (VISION_TOOLS.has(bareName)) {
-        return `ERROR: '${bareName}' is unavailable here - this assistant cannot see images. Do NOT call it again. Inspect the place programmatically instead (e.g. inspect_instance, get_studio_state, search_game_tree, script_read).`;
+        return `${ZS.ERR_LEAD} '${bareName}' is unavailable here - this assistant cannot see images. Do NOT call it again. Inspect the place programmatically instead (e.g. inspect_instance, get_studio_state, search_game_tree, script_read).`;
       }
-      return `ERROR: the '${bareName}' command timed out and is unavailable in this environment. Do NOT call it again - complete the task yourself using the other commands (execute_luau, multi_edit, etc.).`;
+      return `${ZS.ERR_LEAD} the '${bareName}' command timed out and is unavailable in this environment. Do NOT call it again - complete the task yourself using the other commands (execute_luau, multi_edit, etc.).`;
     }
     // Virtual command: list the MCP server(s) ZeroScript is currently connected
     // to, with each one's REAL per-server health (from the bridge, never the
@@ -969,7 +1062,7 @@
       const scoped = A.toolList.filter((t) => (t.server || "roblox") === requested);
       if (!A.toolList.length) return `Output of '${name}':\nNo commands available - the bridge or Roblox Studio may be offline.`;
       if (!scoped.length) {
-        return `Output of '${name}':\nERROR: no server named "${requested}" is connected. Connected servers: ${[...known].join(", ") || "roblox"}. Call list_mcp_servers to check.`;
+        return `Output of '${name}':\n${ZS.ERR_LEAD} no server named "${requested}" is connected. Connected servers: ${[...known].join(", ") || "roblox"}. Call list_mcp_servers to check.`;
       }
       const lines = scoped.map((t) => {
         const props = (t.inputSchema && t.inputSchema.properties) || {};
@@ -1053,7 +1146,7 @@
     // Re-shape those into a real ERROR so the model corrects the call instead
     // of misreading it as tool output.
     if (r.ok && r.text && /^[\w .'"-]{0,60}\bis (required|not available|invalid)\b[\w .'"-]{0,80}$/i.test(r.text.trim())) {
-      return `ERROR calling '${name}': ${r.text.trim()}.\nA required or invalid parameter - check the command's parameters with list_commands, fix the call and retry.`;
+      return `${ZS.ERR_LEAD} the call '${name}' was not run: ${r.text.trim()}.\nA required or invalid parameter - check the command's parameters with list_commands, fix the call and retry.`;
     }
     // The Roblox MCP also reports Luau PARSE/RUNTIME errors as a SUCCESS whose
     // text is the executor's own stack trace ("…ExecuteLuauTool:139: …
@@ -1072,7 +1165,7 @@
         // generic catch: whatever just ran, if it handed back images and this
         // provider's model can't see them, refuse cleanly instead of silently
         // attaching a file it will never actually process.
-        return `ERROR: '${bareName}' returned an image, but this assistant cannot see images. Do NOT call it again. Use a different command to get the information as text instead.`;
+        return `${ZS.ERR_LEAD} '${bareName}' returned an image, but this assistant cannot see images. Do NOT call it again. Use a different command to get the information as text instead.`;
       }
       if (r.images && r.images.length) {
         // Show the capture in a left-hand ZeroScript popup (from the in-memory
@@ -1109,7 +1202,7 @@
     }
     if (r.kind === "disconnected") return ZS.FEEDBACK.bridgeOffline;
     if (r.kind === "timeout") {
-      return `ERROR: tool '${name}' timed out after ${name === "execute_luau" ? 20 : 120}s.\n${r.error}\nTry a shorter/simpler call or check that Roblox Studio is open and responsive.`;
+      return `${ZS.ERR_LEAD} tool '${name}' timed out after ${name === "execute_luau" ? 20 : 120}s.\n${r.error}\nTry a shorter/simpler call or check that Roblox Studio is open and responsive.`;
     }
     if (name === "execute_luau") {
       const err = r.error || "";
@@ -1130,9 +1223,9 @@
         : err.includes("attempt to") || err.includes("nil value")
           ? "Lua runtime error. Check that the API you are calling exists (use game:GetService() to access services). Make sure you use 'return' to output values, not 'print()'."
           : "Check your Lua syntax, make sure you use 'return' to output values (not 'print()'), and that all APIs you call exist in the current Roblox Studio context.";
-      return `ERROR in execute_luau: ${err}\n\n${hint}\n\nFix the code and retry.`;
+      return `${ZS.ERR_LEAD} execute_luau did not run: ${err}\n\n${hint}\n\nFix the code and retry.`;
     }
-    return `ERROR calling '${name}': ${r.error}\nRead the error carefully, fix the call or try a different approach.`;
+    return `${ZS.ERR_LEAD} the call '${name}' was not run: ${r.error}\nRead the error carefully, fix the call or try a different approach.`;
   }
 
   function argSummary(call) {
@@ -1160,14 +1253,20 @@
   // "Failed: 0" / "Error count: 0" is NOT misread as a failure.
   const BODY_ERR_RE =
     /^\s*(error executing|error:|erreur|exception|traceback|communication error|failed to|could ?not|cannot |unable to|fatal)\b/i;
+  // Failure-lead test for OUR wrappers. The model-facing lead used to be a
+  // bare "ERROR:" - an identical machine marker at the start of every failure
+  // turn is a fixed, recurring pattern in the conversation text, so it is now
+  // ZS.ERR_LEAD ("Not working command because mistakes:"). Keep the old shape
+  // here so a conversation that started on an older build still classifies.
+  const ERR_LEAD_RE = /^\s*(?:ERROR\b|Not working command because mistakes:)/;
   const stripOutputPrefix = (feedback) => feedback.replace(/^Output of '[^']*':\n?/, "");
   function bodyLooksFailed(feedback) {
-    if (!feedback || feedback.startsWith("ERROR")) return false; // wrapper already flags it
+    if (!feedback || ERR_LEAD_RE.test(feedback)) return false; // wrapper already flags it
     const first = stripOutputPrefix(feedback).split("\n").map((s) => s.trim()).find(Boolean) || "";
     return BODY_ERR_RE.test(first);
   }
   // True failure = OUR wrapper prefix OR an MCP tool's in-body error lead-in.
-  const feedbackIsError = (feedback) => feedback.startsWith("ERROR") || bodyLooksFailed(feedback);
+  const feedbackIsError = (feedback) => ERR_LEAD_RE.test(feedback) || bodyLooksFailed(feedback);
 
   // Some tools answer with raw JSON on one line, and a 44-char slice of it makes
   // a chip that says nothing: list_roblox_studios read
@@ -1272,6 +1371,14 @@
         if (res.kind === "context_limit") {
           ui.banner("limit", `${P.displayName} reached its context limit`,
             (res.detail || "") + "  -  open a new chat to start fresh.");
+          break;
+        }
+        if (res.kind === "rate_limited") {
+          // The rate-limit cutoff tripped (send refused, or the site answered
+          // with its "too frequent" notice). tripRateLimit already showed the
+          // banner and latched the cooldown - the watchdog and the sys-resend
+          // fallback honour it too - so just end the loop cleanly here.
+          diag("loop.rateLimited");
           break;
         }
         if (res.kind === "too_long") {
@@ -1394,7 +1501,7 @@
           diag("tool.start", { name: call.tool });
           const feedback = await runTool(call);
           A.toolRunning = false;
-          diag("tool.done", { name: call.tool, ok: !feedback.startsWith("ERROR"), out: feedback.slice(0, 50) });
+          diag("tool.done", { name: call.tool, ok: !feedbackIsError(feedback), out: feedback.slice(0, 50) });
           if (A.stop) {
             // User halted mid-tool: settle the spinning chip so it doesn't look
             // stuck loading forever, and MARK the turn so the sweep classifier
@@ -1857,7 +1964,12 @@
       if (!alive()) return;
       // The user halted the bootstrap (our Stop or the site's native stop). Do
       // NOT declare the session ready - abort quietly so "Start" stays available.
-      if (A.stop || startRes.kind === "stopped") { diag("start.aborted", { kind: startRes.kind }); return; }
+      // Same for a rate-limit cutoff: the prompt never got its reply, so the
+      // session must not be marked started (the banner explains the pause).
+      if (A.stop || startRes.kind === "stopped" || startRes.kind === "rate_limited") {
+        diag("start.aborted", { kind: startRes.kind });
+        return;
+      }
 
       // If the model calls list_commands as instructed, run it and wait for the "ready" reply.
       const firstName = startRes.calls && startRes.calls[0] && startRes.calls[0].tool;
@@ -1885,7 +1997,10 @@
         const base2 = await submitAndGetBase(toolFeedback);
         const readyRes = await waitForResponse(base2); // wait for "I'm ready" reply
         if (!alive()) return;
-        if (A.stop || readyRes.kind === "stopped") { diag("start.aborted", { kind: readyRes.kind }); return; }
+        if (A.stop || readyRes.kind === "stopped" || readyRes.kind === "rate_limited") {
+          diag("start.aborted", { kind: readyRes.kind });
+          return;
+        }
       }
       A.started = true;
       rememberSession(P.conversationKey()); // survives virtualization AND reloads
@@ -2157,11 +2272,11 @@
         return;
       }
 
-      // 2. Injected result / ERROR / note turns. ALWAYS a user turn we sent,
+      // 2. Injected result / failure-note / note turns. ALWAYS a user turn we sent,
       //    keyed off our fixed output shapes (never command keywords).
       if (P.isUserItem(item) && ZSParse.isInjectedFeedback(txt)) {
         const m = txt.match(/Output of '([^']+)'/);
-        const isErr = /^\s*ERROR\b/.test(txt);
+        const isErr = ERR_LEAD_RE.test(txt);
         // Reload-proof image detection: a feedback carrying an image ends with the
         // IMAGE_FEEDBACK_RE marker. Learn the tool (persisted) so its command turn
         // above AND its next call get the "screen" chip even with no loop running.
@@ -2194,7 +2309,7 @@
         const nt = P.classifyText(next, ".zs-chip");
         const m = nt.match(/^\s*Output of '([^']+)'/);
         if (m) {
-          const isErr = /^\s*ERROR\b/.test(nt);
+          const isErr = ERR_LEAD_RE.test(nt);
           const phase = isErr ? "err" : "done";
           if (item.dataset.zphase !== phase || chipGone) {
             this.toolBox(item, m[1], phase, "", false);
@@ -2384,8 +2499,8 @@
         if (phase === "done" && next && P.isUserItem(next)) {
           const nt = P.classifyText(next, ".zs-chip");
           // feedbackIsError also catches an MCP tool's in-body error (the result
-          // reads "Output of '…': Error executing code…", which our ERROR prefix
-          // test would miss - the Blender case), so a revisited conversation
+          // reads "Output of '…': Error executing code…", which our failure-lead
+          // prefix test would miss - the Blender case), so a revisited conversation
           // re-settles it red, matching what the loop painted live.
           if (ZSParse.isInjectedFeedback(nt) && feedbackIsError(nt)) {
             phase = "err"; detail = "error";
@@ -4310,6 +4425,7 @@
     if (!A.started || A.running || A.starting || A.injecting) return;
     if (document.hidden) return;                         // AI tab not foreground → don't parse/exec off-screen (agentLoop gates too)
     if (A.userStopped) return;                          // user halted → never relaunch
+    if (rateLimitActive()) return;                      // rate-limit cutoff → no automatic sends of any kind
     if (P.isGenerating()) return;
     if (Date.now() - A.lastGenAt > RESUME_FRESH_MS) return; // not a fresh live turn
     const item = P.lastAssistant();
@@ -4386,6 +4502,7 @@
     if (!sysResendDue()) return;
     if (!A.started || A.running || A.starting || A.injecting) return;
     if (document.hidden || A.userStopped) return;
+    if (rateLimitActive()) return; // rate-limit cutoff → no automatic sends
     if (P.isGenerating()) return;
     // The user is composing - their draft owns the editor, leave it alone.
     try { if ((P.editorText() || "").trim() !== "") return; } catch { return; }

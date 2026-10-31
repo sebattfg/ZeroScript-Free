@@ -33,6 +33,15 @@ const ZS = (() => {
     return "tool";
   }
 
+  // Lead-in for EVERY model-facing failure note (feedback strings below AND
+  // the runtime error wrappers in core/main.js, which import this constant).
+  // Deliberately NOT a bare "ERROR:" - an identical machine marker at the
+  // start of each failure turn is a fixed, recurring pattern in the
+  // conversation text (and models tend to copy it back into their own
+  // replies). One shared constant keeps the wording byte-identical everywhere
+  // and gives parser.isInjectedFeedback a single shape to recognise.
+  const ERR_LEAD = "Not working command because mistakes:";
+
   // Feedback strings sent back to the model so it can self-correct.
   const FEEDBACK = {
     // A command-shaped reply that could not be turned into a runnable call.
@@ -53,21 +62,21 @@ const ZS = (() => {
       const objAlt = otherCmd ? "" : " (or ###...### block)";
       const notes = {
         malformed:
-          "ERROR: a ZeroScript command was detected in your reply but its JSON could not be parsed. " +
+          `${ERR_LEAD} a ZeroScript command was detected in your reply but its JSON could not be parsed. ` +
           'Rewrite it as a single valid JSON object in plain text, exactly like {"command": "name", "params": {...}}' +
           luaMalformed + ". You may add a short note around it. " +
           "Please retry.",
         unclosed:
-          "ERROR: your ZeroScript command was cut off before it finished - the JSON object" +
+          `${ERR_LEAD} your ZeroScript command was cut off before it finished - the JSON object` +
           objAlt + " never closed, so it could not run. Rewrite the WHOLE command in one " +
           'piece as valid JSON, exactly like {"command": "name", "params": {...}}' +
           luaUnclosed + ". Please retry.",
         luaOpener:
-          "ERROR: you wrote the closing ###END_LUA### marker but not the opening ###LUA### marker, " +
+          `${ERR_LEAD} you wrote the closing ###END_LUA### marker but not the opening ###LUA### marker, ` +
           "so the Luau block was not detected and did not run. Put ###LUA### immediately BEFORE your " +
           "code and ###END_LUA### after it. Please retry.",
         envelope:
-          "ERROR: you wrote a command's parameters as a bare JSON object, but without the required " +
+          `${ERR_LEAD} you wrote a command's parameters as a bare JSON object, but without the required ` +
           "envelope, so it was not recognised as a command. Wrap them like " +
           '{"command": "name", "params": { ...your parameters... }} - the parameter keys go INSIDE ' +
           '"params". Please retry.',
@@ -77,7 +86,7 @@ const ZS = (() => {
         // ChatGPT in a long session. Naming the wrong keys explicitly matters: a
         // generic "bad JSON" note made the model rewrite the SAME shape.
         toolKey:
-          "ERROR: you used the wrong key to name the command, so it was not recognised and did not " +
+          `${ERR_LEAD} you used the wrong key to name the command, so it was not recognised and did not ` +
           'run. The key must be exactly "command" - not "toolName", "tool", "name", "function" or ' +
           '"action" - and every argument goes INSIDE "params", like ' +
           '{"command": "name", "params": { ...your parameters... }}. Please retry.',
@@ -86,7 +95,7 @@ const ZS = (() => {
         // often echoes the wording, and a quoted marker would re-trigger the
         // detector and loop the error forever. Describe it, don't reproduce it.
         dsml:
-          "ERROR: you wrote that call in your own internal tool-call markup (the DSML invoke/parameter " +
+          `${ERR_LEAD} you wrote that call in your own internal tool-call markup (the DSML invoke/parameter ` +
           "tags). ZeroScript cannot read that format, so the command did not run. Never use those tags " +
           "here. Write the call as a single plain-text JSON object instead, exactly like " +
           '{"command": "name", "params": { ...your parameters... }} - one command per reply. ' +
@@ -95,16 +104,16 @@ const ZS = (() => {
       return notes[reason] || notes.malformed;
     },
     multiTool: (names) =>
-      "ERROR: You wrote multiple commands in one reply. Write ONE command at a " +
+      `${ERR_LEAD} you wrote multiple commands in one reply. Write ONE command at a ` +
       "time and wait for its result before the next. You tried: " +
       names.join(", ") +
       ". Start over and write only the first command you need.",
     unknownTool: (name, valid) =>
-      `ERROR: unknown command "${name}". It does not exist. Valid commands are: ` +
+      `${ERR_LEAD} unknown command "${name}". It does not exist. Valid commands are: ` +
       valid.join(", ") +
       ". Use an exact name and parameter keys from the system prompt.",
     studioOffline:
-      "ERROR: no Roblox Studio instance is connected to the MCP server, so the command " +
+      `${ERR_LEAD} no Roblox Studio instance is connected to the MCP server, so the command ` +
       "could not run. Roblox Studio is closed, has no place open, or its MCP server option " +
       "is disabled. This is an environment problem on the user's machine, NOT your mistake. " +
       "Tell the user in one short sentence to open their place in Roblox Studio and enable " +
@@ -117,13 +126,13 @@ const ZS = (() => {
     // burns the whole conversation re-issuing commands that can never run. See
     // isContextInvalidated in core/main.js.
     staleExtension:
-      "ERROR: the ZeroScript extension was reloaded or updated while this page was open, so this " +
+      `${ERR_LEAD} the ZeroScript extension was reloaded or updated while this page was open, so this ` +
       "tab is running a version of it that no longer exists and NO command can reach the user's " +
       "machine from here. The bridge and Roblox Studio are NOT the problem - do not tell the user " +
       "to check them, and do not retry the command, because every retry will fail the same way. " +
       "Tell the user in one short sentence to RELOAD THIS PAGE (F5), then stop and wait.",
     bridgeOffline:
-      "ERROR: the local ZeroScript bridge is unreachable, so no command could run. " +
+      `${ERR_LEAD} the local ZeroScript bridge is unreachable, so no command could run. ` +
       "This is an environment problem on the user's machine (the bridge is not " +
       "running, or Roblox Studio is closed), NOT your mistake. Tell the user in " +
       "one short sentence that the bridge or Roblox Studio is offline, then stop " +
@@ -170,7 +179,7 @@ const ZS = (() => {
     const { siteName = "this AI site", customPrompt = "", providerNotes = "" } = opts;
 
     const prompt = `CONTEXT: the user has installed a browser extension called ZeroScript in their own browser. Here is how it works, so you can use it on their behalf:
-A browser extension (ZeroScript) is running inside this page. It watches your replies. When it detects a ZeroScript command in your text, it runs it against one or more connected MCP servers and sends the result back as the next message. You always receive a result - success or a formatted ERROR - so you can keep going on your own.
+A browser extension (ZeroScript) is running inside this page. It watches your replies. When it detects a ZeroScript command in your text, it runs it against one or more connected MCP servers and sends the result back as the next message. You always receive a result - success or a 'Not working command because mistakes:' note - so you can keep going on your own.
 
 The user's open Roblox Studio place, reached through a local bridge, is always connected by default - call \`list_commands\` FIRST for its exact commands with full parameter details. Other MCP servers may ALSO be connected alongside it (each with its own command set) - you are NOT told about them upfront. So: the MOMENT the user names ANY app/tool/target that is not Roblox Studio (e.g. "Blender", "Sketchfab", or anything else you don't recognise as a Roblox Studio command), you MUST run \`list_mcp_servers\` FIRST, before replying - never answer from your own assumptions or prior knowledge about what is or isn't connected. Only after checking may you tell the user something is unsupported. You do not need any special capability yourself - you just write text. The extension does the rest.
 
@@ -207,7 +216,7 @@ RULES:
 - execute_luau: wrap code in BOTH markers ###LUA### ... ###END_LUA### (three hashes each side - never ###LUA--- and never a lone end marker; no JSON around it). Bare ###LUA### targets "Edit" and only works when Studio is NOT playing. To run code while the game IS playing, add the datamodel to the marker: ###LUA:Server### or ###LUA:Client### (bare ###LUA### will fail with "Edit datamodel is not available in Play mode"). Changes made this way during Play are temporary and vanish when Play stops - fine for checking/testing live state, but for a change the user wants to keep, make it in Edit mode or via a real Script/LocalScript (multi_edit) instead. Use \`return\` for output (print is NOT captured). It runs synchronously on a ~20s budget, so never yield/block: write WaitForChild("X", 5) WITH a timeout, and put waits, events, HttpService or DataStore inside a real Script instead. (Per-command tips are in the list_commands output.)
 - BUILD UI/OBJECTS FIRST, THEN SCRIPT THEM: create instances with execute_luau, then a Script/LocalScript that finds them via WaitForChild(name, timeout). Use runtime Instance.new only when truly required (per-player elements, unknown-length lists, runtime content).
 - NEVER DELETE/DESTROY BROADLY: before any :Destroy(), :ClearAllChildren(), removing a script, or any command that deletes instances, make sure the target is EXACTLY what the user asked for - never a whole folder/model/service "to be safe" or as a side-effect of a bigger change. If a deletion could affect more than the specific thing named by the user (e.g. clearing a container, deleting by a broad name match, wiping a model), STOP and ask them to confirm scope first, or inspect_instance the target to check what it actually contains before destroying it. Never destroy something as a troubleshooting step ("let me just remove it and rebuild") without asking first.
-- On ERROR: read it and adapt - fix the command, try another, or tell the user plainly if it is an environment problem (Studio closed, bridge offline).
+- On a 'Not working command because mistakes:' note: read it and adapt - fix the command, try another, or tell the user plainly if it is an environment problem (Studio closed, bridge offline).
 - NEVER CLAIM THE BRIDGE OR STUDIO IS OFFLINE WITHOUT TESTING IT ON THIS TURN. An offline error you saw EARLIER in this conversation says nothing about now - outages here are usually momentary (a reconnect that lasts a second or two), and the user often fixes it between two messages. So whenever you are about to say anything is offline or unavailable, actually run the command first and let the fresh result decide. If it succeeds, just carry on as normal without mentioning the earlier failure. Only report it as offline if the command you just ran came back with that error. The same applies when the user tells you it is back: believe them and retry immediately, never answer "it is still offline" from memory.
 - On a property/attribute/value error (e.g. "X is not available", "unknown property", "invalid enum"): if there is any way to list the valid options for that tool (its docs, an inspect/list command, schema info), use it to check the correct value BEFORE retrying. Never guess blindly a second time.
 
@@ -356,6 +365,7 @@ IMPORTANT: Your very first action is to write \`list_commands\` with no params (
     APP_NAME,
     SYS_MARKER,
     RESEND_MARKER,
+    ERR_LEAD,
     FEEDBACK,
     toolCategory,
     buildSystemPrompt,

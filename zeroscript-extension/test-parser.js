@@ -47,6 +47,15 @@ ok("prose has no signature", ZSParse.hasToolSignature("Here is how you could use
 ok("command shape detected", ZSParse.hasCommandShape('{"command":"x"}') === true);
 ok("injected feedback detected", ZSParse.isInjectedFeedback("Output of 'execute_luau':\n2") === true);
 ok("parse-error note is feedback not command", ZSParse.isInjectedFeedback('ERROR: bad JSON, write {"command": "name"}') === true);
+// The failure lead was renamed from "ERROR:" to ZS.ERR_LEAD - the new shape
+// must camouflage exactly like the old one (and the old shape stays valid for
+// conversations that started on an older build).
+ok("new failure lead is feedback not command",
+   ZSParse.isInjectedFeedback('Not working command because mistakes: bad JSON, write {"command": "name"}') === true);
+ok("failure lead with leading whitespace still detected",
+   ZSParse.isInjectedFeedback('  Not working command because mistakes: unknown command "x"') === true);
+ok("prose is not injected feedback",
+   ZSParse.isInjectedFeedback("I got a 'Not working command because mistakes:' note earlier.") === false);
 ok("tool name mid-stream", ZSParse.toolNameFromText('{"command":"multi_ed') === "multi_ed");
 
 // ── salvageCutOff: auto-close a command whose trailing closers were cut ──
