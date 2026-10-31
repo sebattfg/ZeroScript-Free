@@ -2,6 +2,18 @@
 
 All notable changes to ZeroScript Free are documented here.
 
+## [1.5.6.1] - 2026-11-01
+
+### Fixed
+- **bridge.py: stray double hash in the SPDX-License-Identifier comment.**
+  The first line of `Client/bridge.py` read `# # SPDX-License-Identifier: ...`
+  (a leading `#` too many). Now a single `#`, matching every other source file
+  in the project. No runtime change.
+
+### Changed
+- **Bumped manifest version to `1.5.6.1`** to mark the typo fix as a separate
+  patch entry on top of 1.5.6.
+
 ## [1.5.6] - 2026-10-31
 
 ### Fixed
