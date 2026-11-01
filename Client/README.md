@@ -42,7 +42,7 @@ To load the extension:
 - Go to `edge://extensions` (Edge) or `chrome://extensions` (Chrome)
 - Enable **Developer mode** (top right toggle)
 - Click **Load unpacked**
-- Select the `zeroscript-extension` folder from the extracted zip
+- Select the `Extension` folder from the extracted zip
 
 ### 2. Start Roblox Studio and enable MCP
 

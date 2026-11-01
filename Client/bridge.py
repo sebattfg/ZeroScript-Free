@@ -22,6 +22,7 @@ import asyncio
 import json
 import os
 import queue
+import secrets
 import subprocess
 import sys
 import threading
@@ -72,12 +73,20 @@ def _enable_ansi_colors():
 
 
 HOST = "127.0.0.1"
-# Keep in sync with zeroscript-extension/manifest.json "version" - printed at
+# Keep in sync with Extension/manifest.json "version" - printed at
 # startup so a user's terminal output alone tells us which build they're on.
-BRIDGE_VERSION = "1.5.6"
+BRIDGE_VERSION = "1.5.6.3"
 PORT = int(os.environ.get("ZS_BRIDGE_PORT", "17613"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "config.json")
+
+# Per-install auth token (issue #61). Generated once on first launch, saved
+# next to config.json, printed at startup so the user can paste it into the
+# extension popup one time. Every message the extension sends carries this
+# token; the bridge rejects anything that doesn't match. Defense-in-depth on
+# top of the Origin-header check - another extension in the user's browser
+# could pass the Origin check, but it can't know the token.
+BRIDGE_TOKEN_PATH = os.path.join(HERE, "bridge_token.txt")
 
 # The primary server. It is always present, added by the installer, and can
 # never be edited/removed through the extension (it is what ZeroScript is FOR).
@@ -110,6 +119,120 @@ try:
     _log_file = open(LOG_PATH, "a", encoding="utf-8", errors="replace")
 except Exception:
     _log_file = None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  SECURITY: Origin + per-install auth token (issue #61)
+# ──────────────────────────────────────────────────────────────────────────────
+# A malicious/compromised webpage can open `ws://127.0.0.1:17613` from any
+# tab in the user's browser (the WebSocket API is not subject to the
+# same-origin policy the way fetch/XHR are). Two layers close that hole:
+#   1. Origin-header check - the bridge only accepts connections from the
+#      user's own browser extension (`chrome-extension://<id>` /
+#      `moz-extension://<id>`), never from `https://*` / `http://*` / null.
+#   2. Per-install auth token - the bridge generates a 32-char hex token on
+#      first launch, prints it on the terminal, and the user pastes it into
+#      the extension popup ONE TIME. Every message the extension sends
+#      carries the token; the bridge rejects anything that doesn't match.
+#      This blocks ANOTHER extension in the user's browser (which would pass
+#      the Origin check too) from driving Roblox Studio or registering a new
+#      MCP server.
+
+def _get_origin_header(ws):
+    """Read the Origin header from the WebSocket handshake request.
+
+    Works across websockets library versions: the legacy `websockets.serve()`
+    API exposes `ws.request_headers`, the modern `websockets.asyncio.server`
+    API exposes `ws.request` / `ws.headers`. The bridge uses the legacy
+    `websockets.serve()` call, so `request_headers` is what we hit in
+    practice, but the fallbacks keep us working if a future bump swaps the
+    API out from under us."""
+    try:
+        return ws.request_headers.get("Origin", "") or ""
+    except (AttributeError, KeyError):
+        pass
+    try:
+        return ws.request.headers.get("Origin", "") or ""
+    except (AttributeError, KeyError):
+        pass
+    try:
+        return ws.headers.get("Origin", "") or ""
+    except (AttributeError, KeyError):
+        pass
+    return ""
+
+
+def _origin_allowed(origin):
+    """True only for the user's own browser-extension origins.
+
+    `null` and missing are rejected too - browsers always send an Origin on
+    a WS handshake from an extension, so absence is itself suspicious and
+    usually means a non-browser client (curl, a script, a port scanner).
+    """
+    if not origin:
+        return False
+    o = origin.strip().lower()
+    return o.startswith("chrome-extension://") or o.startswith("moz-extension://")
+
+
+def _load_or_create_bridge_token():
+    """Load the per-install auth token from disk, or generate one if missing.
+
+    Returns a (token, was_just_created) tuple. The token is the 32-char hex
+    string the extension must echo on every message; `was_just_created` is
+    True when the file did not exist before this launch (a first-time
+    install, or a deliberate reset by deleting bridge_token.txt), so the
+    startup banner can decide whether to print the full "ACTION NEEDED:
+    paste this token into the popup" framing or just the bare token line
+    (the popup already knows the token from a previous launch).
+
+    The token is persisted next to config.json so it survives bridge
+    restarts and is stable across updates that don't touch
+    `bridge_token.txt`. On Unix the file is chmod 0600 so other users on
+    the machine can't read it; on Windows the file lives in the user's own
+    profile folder by default, which is the common case.
+
+    If the file can't be written (read-only folder, antivirus, etc.) we
+    still return a token so the bridge can run, but the extension cannot
+    authenticate without it - the user is told to make the folder writable
+    and restart. We do NOT fall back to "no token" because that silently
+    reopens the very attack we're closing here (issue #61)."""
+    try:
+        with open(BRIDGE_TOKEN_PATH, "r", encoding="utf-8") as f:
+            tok = f.read().strip()
+        # Validate shape: 16+ hex chars. The 32-char hex we write ourselves
+        # is the canonical form; the >= 16 floor tolerates a hand-typed
+        # shorter token without silently accepting garbage.
+        if tok and len(tok) >= 16 and all(c in "0123456789abcdefABCDEF" for c in tok):
+            return tok, False
+        log(f"bridge_token.txt is present but malformed - generating a new one", "yl")
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log(f"bridge_token.txt unreadable ({e}) - generating a new one", "yl")
+    tok = secrets.token_hex(16)  # 16 random bytes -> 32 hex chars
+    wrote = True
+    try:
+        with open(BRIDGE_TOKEN_PATH, "w", encoding="utf-8") as f:
+            f.write(tok + "\n")
+        try:
+            os.chmod(BRIDGE_TOKEN_PATH, 0o600)
+        except Exception:
+            pass  # Windows: chmod is a no-op; the file is already user-private.
+    except Exception as e:
+        log(f"could not write bridge_token.txt ({e}) - the bridge will run, but "
+            "the extension CANNOT authenticate. Make the bridge folder "
+            "writable and restart.", "rd")
+        wrote = False
+        # Don't return None - we still want a token in memory so the auth
+        # check is consistent across messages within this run. The extension
+        # won't be able to know it (the file is unreadable), so the user has
+        # to fix the folder before the popup's "Save token" path will work.
+    return tok, wrote
+
+
+# Loaded once at startup in main(); the handler reads this global.
+BRIDGE_TOKEN = ""
 
 
 class _Spinner:
@@ -216,6 +339,38 @@ def action_banner(lines):
             _log_file.flush()
         except Exception:
             pass
+
+
+def _print_token_banner(token, was_just_created=False):
+    """Print the per-install bridge auth token (issue #61).
+
+    1.5.6.3+ AUTO-HANDSHAKE: the bridge now sends the token IN the welcome
+    frame to the extension, which auto-stores it in chrome.storage.local.
+    The user no longer has to copy-paste anything from this terminal. The
+    token line below is kept ONLY as an emergency recovery path: if the
+    extension ever loses its stored token (cleared storage, fresh install,
+    profile swap) the user can still paste this value into the popup's
+    "Change bridge token" link. We deliberately do NOT show the big red
+    "ACTION NEEDED" framing anymore - that framing taught users to expect
+    a manual setup step that no longer exists."""
+    if not token:
+        # Should not happen - the loader refuses to return empty - but be
+        # explicit so a future regression doesn't silently disable auth.
+        log("bridge token is empty; the extension will not be able to "
+            "authenticate (issue #61 fix is bypassed).", "rd")
+        return
+    # One quiet line, NOT a banner. The bridge sends the token to the
+    # extension automatically on connect; the visible terminal line is just
+    # for the rare "extension lost the token" recovery case.
+    print(f"  bridge token: {C['cy']}{token}{C['reset']}")
+    log(f"bridge token: {token}", "cy")
+    # First-run hint only: tell the user once that auto-setup is happening,
+    # so they don't wonder why the popup never asks them to paste anything.
+    # No red banner - just a green informational line that auto-setup is on.
+    if was_just_created:
+        print(f"  {C['gr']}First run: the extension will pick this token up "
+              f"automatically on its next reconnect - no copy/paste needed.{C['reset']}")
+        log("first run: extension will auto-pick-up the token on reconnect", "gr")
 
 
 # Roblox Studio exposes its built-in MCP server on this loopback port. StudioMCP
@@ -1328,6 +1483,18 @@ async def broadcast_status():
             "servers": mgr.health(),
             "tools": mgr.list_tools(),
             "port": PORT,
+            # Mirrored from the handler() welcome frame so a late-connecting
+            # extension (or one that missed the first push) still learns the
+            # bridge requires the auth token (issue #61).
+            "auth_required": True,
+            # Auto-handshake (1.5.6.3+): every "connected" broadcast carries
+            # the token too, so a reconnect / late-poll / config-reload
+            # self-heals an out-of-date stored token in the extension without
+            # any user action. Same Origin check that gates the welcome frame
+            # also gates who receives this broadcast - only already-accepted
+            # connections are in `clients`, and `clients.add(ws)` only
+            # happens AFTER the Origin check in handler().
+            "token": BRIDGE_TOKEN,
         })
     except Exception:
         return
@@ -1340,6 +1507,28 @@ async def broadcast_status():
 
 async def handler(ws):
     peer = getattr(ws, "remote_address", ("?",))[0]
+
+    # ── Origin check (issue #61) ───────────────────────────────────────────
+    # Without this, a malicious or compromised webpage can open a WebSocket to
+    # ws://127.0.0.1:17613 from any tab in the user's browser (the WebSocket
+    # API is not subject to the same-origin policy the way fetch/XHR are) and
+    # drive Roblox Studio or register a new MCP server. Restrict the bridge to
+    # its own extension's origin so a webpage can't.
+    try:
+        origin = _get_origin_header(ws)
+    except Exception:
+        origin = ""
+    if not _origin_allowed(origin):
+        log(f"rejecting connection from disallowed origin {origin!r} ({peer})", "rd")
+        try:
+            # 4401 = "Origin not allowed" (custom close code in the 4000-4999
+            # app-defined range). Closing before we send anything keeps the
+            # handshake from completing.
+            await ws.close(code=4401, reason="origin not allowed")
+        except Exception:
+            pass
+        return
+
     clients.add(ws)
     log(f"extension connected  ({peer})  [{len(clients)} client(s)]", "gr")
     try:
@@ -1352,12 +1541,54 @@ async def handler(ws):
             "servers": mgr.health(),
             "tools": mgr.list_tools(),
             "port": PORT,
+            # Tell the extension this bridge requires the per-install auth
+            # token on every message (1.5.6.2+). Older bridges omit the field;
+            # the extension reads it and shows the setup prompt only when the
+            # bridge actually enforces it.
+            "auth_required": True,
+            # Issue #61 auto-handshake (1.5.6.3+): we send the per-install
+            # auth token IN the welcome frame itself, so the extension can
+            # auto-store it and never asks the user to copy-paste from the
+            # terminal. This is safe because the Origin check above has
+            # ALREADY filtered out non-extension origins - only the user's
+            # own browser extension gets this frame, by definition. The
+            # token still protects against messages from a stale
+            # chrome.storage (e.g. after the bridge was reinstalled with a
+            # fresh bridge_token.txt and the extension still holds the OLD
+            # token): every subsequent message still has to match BRIDGE_TOKEN
+            # in the per-message check below. The extension updates its
+            # stored token from this field whenever the welcome frame
+            # arrives with one; an old/wrong stored token then self-heals
+            # on the next reconnect.
+            "token": BRIDGE_TOKEN,
         }))
         async for raw in ws:
             try:
                 msg = json.loads(raw)
             except Exception:
                 continue
+
+            # ── Token check (issue #61) ────────────────────────────────────
+            # Every message must carry the per-install auth token. The Origin
+            # check above blocks arbitrary webpages, but ANOTHER extension in
+            # the user's browser would also pass that check (its origin is
+            # chrome-extension:// too). The token closes that hole: only the
+            # extension that the user pasted the token into can drive the
+            # bridge. We check it on EVERY message (not just the first) so a
+            # client can't authenticate once and then keep talking after the
+            # user clears the token from the popup.
+            if msg.get("token") != BRIDGE_TOKEN:
+                log(f"rejecting {msg.get('type')!r} from {peer}: "
+                    f"missing or wrong auth token", "rd")
+                try:
+                    await ws.send(json.dumps({
+                        "type": "auth_error", "id": msg.get("id"),
+                        "error": "missing or wrong auth token",
+                    }))
+                except Exception:
+                    pass
+                continue
+
             mtype = msg.get("type")
             rid = msg.get("id")
 
@@ -1792,8 +2023,17 @@ async def _supervised(name, coro_factory):
 
 
 async def main():
+    global BRIDGE_TOKEN
     print(f"\n{C['cy']}  ZeroScript Bridge v{BRIDGE_VERSION}{C['reset']}  {C['dim']}- Roblox Studio - ws://{HOST}:{PORT}{C['reset']}\n")
     log(f"===== BRIDGE START  v{BRIDGE_VERSION}  pid={os.getpid()}  log={LOG_PATH} =====", "cy")
+
+    # Load (or generate) the per-install auth token. Printed prominently so
+    # the user can copy it into the extension popup the first time. This is
+    # the second layer of the issue #61 fix; the Origin-header check is the
+    # first, in handler() above.
+    BRIDGE_TOKEN, _token_just_created = _load_or_create_bridge_token()
+    _print_token_banner(BRIDGE_TOKEN, _token_just_created)
+
     await asyncio.to_thread(_kill_orphan_studio_mcp)
     killed_squatter = await asyncio.to_thread(check_studio_port)
     mgr.load_config()

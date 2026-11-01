@@ -1,0 +1,15 @@
+[
+  "Couldn't complete — bad JSON",
+  "Couldn't decode — bad shape",
+  "Couldn't dispatch — syntax issues",
+  "Couldn't execute — garbled JSON",
+  "Couldn't finish — bad opcode",
+  "Couldn't handle — a missing field",
+  "Couldn't interpret — malformed input",
+  "Couldn't parse — an unknown opcode",
+  "Couldn't process — broken payload",
+  "Couldn't run — an empty payload",
+  "Couldn't send — an incomplete payload",
+  "Couldn't validate — missing parameter",
+  "That failed as a result of a broken token sequence"
+]

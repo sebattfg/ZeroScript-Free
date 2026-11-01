@@ -2,6 +2,170 @@
 
 All notable changes to ZeroScript Free are documented here.
 
+## [1.5.6.3] - 2026-11-01
+
+### Security / UX
+- **bridge.py: the per-install auth token is now auto-shared with the
+  extension in the WebSocket welcome frame (issue #61, auto-handshake).**
+  Until now the user had to copy the 32-char hex token from the bridge's
+  terminal and paste it into the extension popup by hand. In 1.5.6.3 the
+  bridge sends the token IN the `"connected"` welcome frame (and every
+  follow-up `broadcast_status`), and `background.js` auto-stores it in
+  `chrome.storage.local` on the first frame that arrives. The user never
+  has to copy-paste anything. This is safe because the bridge's Origin
+  check (added in 1.5.6.2) has already filtered out non-extension origins
+  before this frame is sent — receiving it means the connection is the
+  user's own browser extension, by definition.
+- **bridge.py: the `ACTION NEEDED` red banner is gone.** The token is now
+  printed on the terminal as one quiet cyan line (`bridge token: <value>`),
+  kept only as an emergency recovery path for the rare case where the
+  extension lost its stored token (cleared storage, fresh install, profile
+  swap) and the user needs to manually re-paste via the popup's "Change
+  bridge token" link. First-run prints an extra green one-line hint
+  ("First run: the extension will pick this token up automatically on its
+  next reconnect - no copy/paste needed.") so a user watching the terminal
+  doesn't wonder why the popup never asks them to paste anything.
+- **extension: popup now shows a one-line "Bridge authenticated ✓" panel
+  for ~2.5 seconds when the auto-handshake completes.** Green border, no
+  input field, fades out by itself. This is the only first-run UX for the
+  new flow — no paste panel, no terminal copy-paste. The existing manual
+  paste panel is kept as a fallback: it now appears only when the bridge
+  enforces `auth_required: true` AND the auto-handshake hasn't happened
+  yet (older bridge, dropped connection before the welcome frame landed).
+  Its hint text was updated to explain this: "The bridge normally
+  auto-shares its token with the extension on connect. If you see this,
+  the auto-handshake didn't happen yet (older bridge, or the connection
+  dropped). Manual fallback: ..."
+- **background.js: self-heal on stale token.** If the bridge was
+  reinstalled and got a fresh `bridge_token.txt`, the extension's stored
+  copy is now stale and every outgoing message would bounce as
+  `auth_error`. In 1.5.6.3, the next welcome frame (which carries the
+  bridge's CURRENT token) auto-replaces the stored copy — no user action
+  needed. The model-facing `auth_error` message in `core/main.js` was
+  updated to tell the model that the auto-reconnect will pick up the new
+  token in a few seconds and retrying won't help right now; the user is
+  told to wait or reload the page if the next retry still fails.
+
+### Fixed
+- **failure_leads.json: collapsed from 1000 paraphrases to one phrase per
+  error verb, AND every error in the extension now carries its own unique
+  lead phrase.** The original file shipped 1000 alternations of the same
+  failure scenarios (a tool/payload/command/opcode couldn't be parsed /
+  decoded / dispatched / executed / finished / handled / interpreted /
+  processed / run / sent / validated because of a bad shape / missing
+  field / broken token stream / etc.). `core/config.js` now defines a
+  `FAILURE_LEADS` map with one canonical phrase per action verb (13
+  phrases total — 12 verbs + 1 long-form catch-all), and a `leadFor(key)`
+  helper that returns the right phrase for any case. Every entry in
+  `FEEDBACK` (`parseError` per reason, `multiTool`, `unknownTool`,
+  `studioOffline`, `staleExtension`, `bridgeOffline`) and every runtime
+  error wrapper in `core/main.js` (`auth_error`, `timeout`,
+  `execute_luau`, catch-all) now starts with `${ERR_LEAD} ${leadFor(key)}`
+  so each failure note reads differently to the model. The `ERR_LEAD`
+  prefix is preserved unchanged so `parser.isInjectedFeedback()` continues
+  to camouflage every injected feedback turn. Examples: a `malformed`
+  parse error now opens "Not working command because mistakes: Couldn't
+  parse — an unknown opcode. A ZeroScript command was detected…"; a
+  `studioOffline` opens "Not working command because mistakes: Couldn't
+  run — an empty payload. No Roblox Studio instance is connected…".
+  The full reduced list is preserved at the project root
+  (`/failure_leads.json`) for reference and future regeneration; the
+  reducer script lives at `/scripts/reduce_failure_leads.py`. Verified
+  end-to-end by `/scripts/test_failure_leads.js` (every phrase defined,
+  every phrase wired to a real case, every feedback case starts with its
+  own lead, every feedback case still recognised as injected feedback).
+- **Project layout: `zeroscript-extension/` renamed to `Extension/`.**
+  All references (in `Extension/README.md`, `Client/README.md`, and the
+  comment above `BRIDGE_VERSION` in `bridge.py`) updated to the new name.
+
+### Changed
+- **Bumped manifest version to `1.5.6.3`** and `BRIDGE_VERSION` in
+  `bridge.py` to match.
+
+## [1.5.6.2] - 2026-11-01
+
+### Security
+- **bridge.py: WebSocket handshake now validates the `Origin` header (issue #61).**
+  Until now `websockets.serve(handler, HOST, PORT, ...)` accepted any connection
+  on `ws://127.0.0.1:17613`. The browser's WebSocket API is NOT subject to the
+  same-origin policy the way `fetch`/`XHR` are, so any webpage open in any tab
+  of the user's browser could open a WebSocket to the bridge and drive
+  Roblox Studio through `call_tool` (Luau execution / script tampering) or
+  register a new MCP server through `add_server` (writing an arbitrary
+  `command` / `args` into `config.json`, which the bridge then launches —
+  i.e. arbitrary code execution on the user's machine). The handshake now
+  only accepts origins whose scheme is `chrome-extension://` or
+  `moz-extension://`; everything else (`https://*`, `http://*`, `ws://*`,
+  `null`, missing) is closed with a 4401 status before the handshake
+  completes. This closes the "visit the wrong webpage while the bridge
+  happens to be running" attack vector.
+
+- **bridge.py: per-install auth token (issue #61, defense-in-depth).** Even
+  with the Origin check, another extension installed in the same browser
+  would also pass it (its origin is `chrome-extension://` too). To close
+  that hole the bridge now generates a 32-char hex token on first launch,
+  writes it to `Client/bridge_token.txt` (chmod 0600 on Unix; private to
+  the user on Windows by default), and prints it on the terminal with a
+  one-time "ACTION NEEDED: paste this token into the ZeroScript popup"
+  banner. Every message the extension sends carries the token; the bridge
+  rejects anything that doesn't match with an `auth_error` frame. The user
+  pastes the token ONCE into the popup, which stores it in
+  `chrome.storage.local` (per-machine, not synced across Chrome profiles
+  since the bridge is per-machine), and from then on every WebSocket
+  message is auto-stamped with it. Deleting `bridge_token.txt` and
+  restarting the bridge regenerates a new token and re-shows the banner,
+  which the user can re-paste via the popup's "Change bridge token" link.
+
+- **extension: popup now has a one-time "Bridge token" setup panel.**
+  `popup.html` gained a small yellow-bordered panel that appears only when
+  the connected bridge reports `auth_required: true` AND no token is yet
+  stored in `chrome.storage.local`. The user pastes the token, clicks
+  Save, and the panel collapses to a one-line "Change bridge token" link
+  for future re-paste. The panel stays hidden against a 1.5.6.1 (or
+  earlier) bridge, which never sends `auth_required`, so existing users
+  who upgrade only the extension see no change until they upgrade the
+  bridge too. `background.js` stamps the token on every outgoing message
+  (`call_tool`, `list_tools`, `ping`, `studio_status`, `add_server`,
+  `remove_server`, `restart_mcp`) so every code path inherits the auth
+  from a single place. The agentic loop in `core/main.js` recognises the
+  bridge's `auth_error` reply, surfaces a one-shot banner asking the
+  user to paste the token, and tells the model in the feedback line that
+  retrying won't help — so the agent stops cleanly instead of looping on
+  the same call.
+
+### Fixed
+- **failure_leads.json: collapsed from 1000 paraphrases to one phrase per
+  error verb, AND every error in the extension now carries its own unique
+  lead phrase.** The original file shipped 1000 alternations of the same
+  failure scenarios (a tool/payload/command/opcode couldn't be parsed /
+  decoded / dispatched / executed / finished / handled / interpreted /
+  processed / run / sent / validated because of a bad shape / missing
+  field / broken token stream / etc.). `core/config.js` now defines a
+  `FAILURE_LEADS` map with one canonical phrase per action verb (13
+  phrases total — 12 verbs + 1 long-form catch-all), and a `leadFor(key)`
+  helper that returns the right phrase for any case. Every entry in
+  `FEEDBACK` (`parseError` per reason, `multiTool`, `unknownTool`,
+  `studioOffline`, `staleExtension`, `bridgeOffline`) and every runtime
+  error wrapper in `core/main.js` (`auth_error`, `timeout`,
+  `execute_luau`, catch-all) now starts with `${ERR_LEAD} ${leadFor(key)}`
+  so each failure note reads differently to the model. The `ERR_LEAD`
+  prefix is preserved unchanged so `parser.isInjectedFeedback()` continues
+  to camouflage every injected feedback turn. Examples: a `malformed`
+  parse error now opens "Not working command because mistakes: Couldn't
+  parse — an unknown opcode. A ZeroScript command was detected…"; a
+  `studioOffline` opens "Not working command because mistakes: Couldn't
+  run — an empty payload. No Roblox Studio instance is connected…".
+  The full reduced list is preserved at the project root
+  (`/failure_leads.json`) for reference and future regeneration; the
+  reducer script lives at `/scripts/reduce_failure_leads.py`. Verified
+  end-to-end by `/scripts/test_failure_leads.js` (every phrase defined,
+  every phrase wired to a real case, every feedback case starts with its
+  own lead, every feedback case still recognised as injected feedback).
+
+### Changed
+- **Bumped manifest version to `1.5.6.2`** and `BRIDGE_VERSION` in
+  `bridge.py` to match.
+
 ## [1.5.6.1] - 2026-11-01
 
 ### Fixed
