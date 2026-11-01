@@ -1,1 +1,0 @@
-Someone, help setting with .gitignore to ignore MY TOKEN
