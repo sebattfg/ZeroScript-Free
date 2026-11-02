@@ -68,6 +68,21 @@
   function tripRateLimit(where) {
     if (rateLimitActive()) return; // idempotent during one cooldown window
     rateLimitUntil = Date.now() + RATELIMIT_COOLDOWN_MS;
+    // PR-121 follow-up fix: the 2-min cooldown alone was not enough. Both
+    // automatic senders also gate on rateLimitActive(), so the moment the
+    // cooldown EXPIRED they were free to fire again while the site's real
+    // frequency limit (usually > 2 min) was still hot - one refusal then
+    // became a slow-drip loop: send -> refuse -> 2 min -> send -> refuse.
+    // The banner promises "send a short message YOURSELF to resume", so make
+    // that literally the only resume path:
+    //   - rateLimitHold stays latched until a REAL user message arrives
+    //     (cleared in the onUserMessage hook) - blocks the sys-resend
+    //     fallback and the auto-resume watchdog outright;
+    //   - lastGenAt = 0 un-freshes the refused turn so the watchdog's
+    //     RESUME_FRESH_MS "fresh live turn" test can never pass for it
+    //     (every lastGenAt use is a staleness check, so 0 is safe).
+    A.rateLimitHold = true;
+    A.lastGenAt = 0;
     diag("ratelimit.trip", { where, cooldownMs: RATELIMIT_COOLDOWN_MS });
     // Banner wording deliberately avoids every RATE_LIMIT_* trigger phrase
     // (this text lands in the DOM, and pageRateLimitText scans the page).
@@ -176,6 +191,10 @@
   const A = {
     running: false,
     stop: false,
+    // rateLimitHold: latched by tripRateLimit(), cleared ONLY by a real user
+    // message (onUserMessage). While set, no automatic send of any kind may
+    // fire - see the PR-121 follow-up comment at tripRateLimit.
+    rateLimitHold: false,
     // stopping: the user clicked Stop and we are winding the loop down. Set the
     // instant the button is clicked so the bar can show immediate "Stopping…"
     // feedback and keep the button steady (no flicker) until the loop's finally
@@ -4394,8 +4413,12 @@
     onBlockedAttempt: () => ui.nudgeStart(),
     onUserMessage: (base) => {
       // A fresh user message = fresh intent: clear any previous manual stop so
-      // the loop is allowed to run again.
+      // the loop is allowed to run again. Also the ONLY path that clears the
+      // rate-limit hold (tripRateLimit latches it) - the banner after a
+      // cutoff says "send a short message yourself to resume", and this is
+      // where that manual send re-enables the agent.
       A.userStopped = false;
+      A.rateLimitHold = false;
       bumpSys("users");
       captureSendToken(); // identity of the assistant turn before this reply
       // A Stop clicked during this 300ms window sets A.userStopped → honor it and
@@ -4461,7 +4484,7 @@
     if (!A.started || A.running || A.starting || A.injecting) return;
     if (document.hidden) return;                         // AI tab not foreground → don't parse/exec off-screen (agentLoop gates too)
     if (A.userStopped) return;                          // user halted → never relaunch
-    if (rateLimitActive()) return;                      // rate-limit cutoff → no automatic sends of any kind
+    if (rateLimitActive() || A.rateLimitHold) return;   // rate-limit cutoff → no automatic sends of any kind (hold lasts until the user sends manually)
     if (P.isGenerating()) return;
     if (Date.now() - A.lastGenAt > RESUME_FRESH_MS) return; // not a fresh live turn
     const item = P.lastAssistant();
@@ -4538,7 +4561,7 @@
     if (!sysResendDue()) return;
     if (!A.started || A.running || A.starting || A.injecting) return;
     if (document.hidden || A.userStopped) return;
-    if (rateLimitActive()) return; // rate-limit cutoff → no automatic sends
+    if (rateLimitActive() || A.rateLimitHold) return; // rate-limit cutoff → no automatic sends (hold: user must resume manually)
     if (P.isGenerating()) return;
     // The user is composing - their draft owns the editor, leave it alone.
     try { if ((P.editorText() || "").trim() !== "") return; } catch { return; }

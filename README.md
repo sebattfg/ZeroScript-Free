@@ -7,6 +7,6 @@ Its fork, not product. Original to authors. Ignore master branch, use what with 
 1. Downoload ZIP (by Code -> Downoload ZIP, cus not make relise for this)
 2. Unpack in any folder, better name of folder "ZeroScript"
 3. Install Extension in Chromium (needs to switch on dev mode)
-4. Open start.bat or MacOS variant
+4. Open `Client\start.bat` (Windows) or `Client/MacOS_Start.command` (macOS) - the maintained, security-fixed launcher (the root-level copies are legacy and now redirect there)
 5. Open Roblox Studio with place
 6. Switch on enable MCP-server

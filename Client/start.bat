@@ -141,12 +141,18 @@ call :log "Python ready after winget install: %PY%"
 
 :install_deps
 REM --- 2. Install websockets --------------------------------------------------
+REM PINNED RANGE, not bare "websockets": the bridge's Origin check reads the
+REM handshake via attributes that differ between the legacy API (<= 13.x,
+REM ws.request_headers) and the asyncio API (14.0+, ws.request.headers). Both
+REM were validated with a live handshake probe, 18.x is NOT - and an unbounded
+REM install lets every user's machine drift onto whatever pip serves that day.
+REM The bridge also warns at startup when it sees a major outside this range.
 echo.
 echo   [2/3] Checking websockets library...
 %PY% -c "import websockets" >nul 2>nul
 if errorlevel 1 (
     echo         Installing websockets - first time only...
-    %PY% -m pip install --user websockets
+    %PY% -m pip install --user "websockets>=12,<18"
     if errorlevel 1 (
         echo.
         echo   ERROR: Could not install websockets ^(see pip output above^).
@@ -158,6 +164,21 @@ if errorlevel 1 (
         call :log "FATAL: pip install websockets failed."
         pause
         exit /b 1
+    )
+) else (
+    REM Already installed - but an EARLIER start.bat may have pulled an
+    REM unbounded latest, e.g. a future 18.x. Downgrade to the validated
+    REM range instead of failing later with connections the bridge rejects.
+    %PY% -c "import sys,websockets;sys.exit(0 if tuple(int(p) for p in websockets.__version__.split('.')[:2])<(18,0) else 1)" >nul 2>nul
+    if errorlevel 1 (
+        echo         websockets is newer than the validated range - pinning...
+        call :log "websockets too new, installing validated range 12.x-17.x"
+        %PY% -m pip install --user "websockets>=12,<18"
+        if errorlevel 1 (
+            echo   WARNING: could not pin websockets - continuing, the bridge
+            echo   will warn if the installed version misbehaves.
+            call :log "WARN: pip pin websockets failed, continuing unvalidated"
+        )
     )
 )
 echo         OK

@@ -75,7 +75,7 @@ def _enable_ansi_colors():
 HOST = "127.0.0.1"
 # Keep in sync with Extension/manifest.json "version" - printed at
 # startup so a user's terminal output alone tells us which build they're on.
-BRIDGE_VERSION = "1.5.6.3"
+BRIDGE_VERSION = "1.5.6.4"
 PORT = int(os.environ.get("ZS_BRIDGE_PORT", "17613"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "config.json")
@@ -87,6 +87,12 @@ CONFIG_PATH = os.path.join(HERE, "config.json")
 # top of the Origin-header check - another extension in the user's browser
 # could pass the Origin check, but it can't know the token.
 BRIDGE_TOKEN_PATH = os.path.join(HERE, "bridge_token.txt")
+
+# Pinned browser-extension ids (1.5.6.4, follow-up to issue #61). One id per
+# line, '#'-comments allowed. NEVER commit this file (it is in .gitignore) -
+# like bridge_token.txt it is per-install local state. Reset by deleting the
+# file and restarting the bridge.
+BRIDGE_EXT_IDS_PATH = os.path.join(HERE, "bridge_extension_ids.txt")
 
 # The primary server. It is always present, added by the installer, and can
 # never be edited/removed through the extension (it is what ZeroScript is FOR).
@@ -141,12 +147,16 @@ except Exception:
 def _get_origin_header(ws):
     """Read the Origin header from the WebSocket handshake request.
 
-    Works across websockets library versions: the legacy `websockets.serve()`
-    API exposes `ws.request_headers`, the modern `websockets.asyncio.server`
-    API exposes `ws.request` / `ws.headers`. The bridge uses the legacy
-    `websockets.serve()` call, so `request_headers` is what we hit in
-    practice, but the fallbacks keep us working if a future bump swaps the
-    API out from under us."""
+    Works across websockets library versions. Validated by a live handshake
+    probe (2026-11-02): websockets <= 13.x serves the LEGACY implementation
+    (`websockets.legacy.server`) which exposes `ws.request_headers`; from
+    14.0 `websockets.serve()` IS the new asyncio implementation and
+    `ServerConnection` has no `request_headers` at all - there the
+    `ws.request.headers` fallback is what actually runs. start.bat pins
+    websockets to a validated range so users don't drift onto a future
+    major that could drop `.request` too (that would fail CLOSED here: no
+    Origin -> rejected, so a silent library bump cannot reopen the origin
+    hole, it would just brick connections visibly)."""
     try:
         return ws.request_headers.get("Origin", "") or ""
     except (AttributeError, KeyError):
@@ -162,17 +172,96 @@ def _get_origin_header(ws):
     return ""
 
 
-def _origin_allowed(origin):
-    """True only for the user's own browser-extension origins.
+def _extension_id_from_origin(origin):
+    """chrome-extension://<id>/ -> '<id>' (lowercased), '' if not an extension
+    origin. The browser sets this header itself and pages cannot override it,
+    so a match here really is the id of the extension that opened the socket."""
+    try:
+        o = (origin or "").strip().lower()
+        for scheme in ("chrome-extension://", "moz-extension://"):
+            if o.startswith(scheme):
+                return o[len(scheme):].split("/", 1)[0].strip()
+    except Exception:
+        pass
+    return ""
 
-    `null` and missing are rejected too - browsers always send an Origin on
-    a WS handshake from an extension, so absence is itself suspicious and
-    usually means a non-browser client (curl, a script, a port scanner).
+
+def _load_pinned_extension_ids():
+    """Read bridge_extension_ids.txt into a set. Called once at startup from
+    main(); after that the in-memory PINNED_EXT_IDS set is authoritative and
+    TOFU pinning appends both to the set and to the file."""
+    ids = set()
+    try:
+        with open(BRIDGE_EXT_IDS_PATH, "r", encoding="utf-8") as f:
+            for ln in f:
+                ln = ln.split("#", 1)[0].strip().lower()
+                if ln:
+                    ids.add(ln)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log(f"could not read bridge_extension_ids.txt ({e}) - treating as "
+            "empty (first connection will pin)", "yl")
+    return ids
+
+
+def _pin_extension_id(ext_id):
+    """Persist a newly pinned extension id (TOFU, see _origin_allowed)."""
+    try:
+        with open(BRIDGE_EXT_IDS_PATH, "a", encoding="utf-8") as f:
+            f.write(ext_id + "\n")
+    except Exception as e:
+        log(f"could not persist pinned extension id ({e}) - it will be "
+            "re-pinned on the next connect, but pinning will not stick "
+            "until the bridge folder is writable", "yl")
+
+
+def _origin_allowed(origin):
+    """True only for the user's OWN browser extension (1.5.6.4).
+
+    1.5.6.3 accepted ANY chrome-extension:// / moz-extension:// origin. That
+    was still too wide: every OTHER extension in the user's browser passes
+    the same prefix check, and the welcome frame handed it the per-install
+    token - the exact scenario the token was added to block (issue #61).
+    Browsers set the Origin header themselves, so the extension ID inside it
+    is trustworthy; we use it as an allow-list.
+
+    Trust model (TOFU - trust on first use):
+      - bridge_extension_ids.txt lists trusted ids; a matching id connects.
+      - An UNKNOWN id is rejected with close code 4402 and logged loudly.
+      - If the list is EMPTY (first launch, or the file was deleted) the
+        FIRST extension that connects is pinned and persisted.
+
+    To re-pin (new machine, Firefox temporary add-on reload, or a malicious
+    extension won the first-connect race): delete bridge_extension_ids.txt,
+    restart the bridge, and reconnect ONLY the real extension. `null` and
+    missing origins stay rejected (non-browser client: curl, scanner, ...).
     """
     if not origin:
         return False
     o = origin.strip().lower()
-    return o.startswith("chrome-extension://") or o.startswith("moz-extension://")
+    if not (o.startswith("chrome-extension://") or o.startswith("moz-extension://")):
+        return False
+    ext_id = _extension_id_from_origin(o)
+    if not ext_id:
+        return False
+    if PINNED_EXT_IDS:
+        if ext_id in PINNED_EXT_IDS:
+            return True
+        log(f"rejecting UNKNOWN extension id '{ext_id}' - not in "
+            f"bridge_extension_ids.txt (trusted: {', '.join(sorted(PINNED_EXT_IDS))}). "
+            "If this IS your extension, delete bridge_extension_ids.txt and "
+            "restart the bridge to re-pin.", "rd")
+        return False
+    # First trusted connection ever: pin it (TOFU). Loud log so the user can
+    # spot a wrong pin immediately - the id is visible in the extension's
+    # own management page (chrome://extensions -> ID).
+    log(f"no extension ids pinned yet - pinning first-seen id '{ext_id}' "
+        "(TOFU). This is saved to bridge_extension_ids.txt; delete that file "
+        "and restart if this is not your extension.", "cy")
+    PINNED_EXT_IDS.add(ext_id)
+    _pin_extension_id(ext_id)
+    return True
 
 
 def _load_or_create_bridge_token():
@@ -233,6 +322,38 @@ def _load_or_create_bridge_token():
 
 # Loaded once at startup in main(); the handler reads this global.
 BRIDGE_TOKEN = ""
+
+# Trusted extension ids (1.5.6.4). Populated in main() from
+# bridge_extension_ids.txt, grown by TOFU pinning inside _origin_allowed().
+# Declared here so handler() can snapshot membership BEFORE that call pins
+# the connecting id (it decides whether the welcome frame may carry the
+# token - see handler()).
+PINNED_EXT_IDS = set()
+
+
+def _warn_token_inside_git_repo():
+    """Red ACTION NEEDED banner when bridge_token.txt lives inside a git work
+    tree. This exact mistake already shipped: PR #121 committed the token file
+    (twice - the second commit even contained a plea for help instead of a
+    token), and a later 'delete file' commit does NOT scrub history - anyone
+    who clones the repo can read every historic value. The only real fix is
+    ROTATION: delete bridge_token.txt so the next start generates a fresh
+    token, then re-auth the extension. The banner fires on every start while
+    the file sits in a repo, so it cannot be scrolled past once and forgotten."""
+    if not os.path.exists(BRIDGE_TOKEN_PATH):
+        return
+    git_marker = os.path.join(HERE, ".git")
+    if not (os.path.isdir(git_marker) or os.path.isfile(git_marker)):
+        return  # .git FILE = worktree checkout; DIR = normal clone
+    action_banner([
+        "bridge_token.txt sits inside a git repository - ROTATE the token.",
+        "If this file was ever committed, the token is PUBLIC forever:",
+        "history rewrites do not un-leak clones that already have it.",
+        "1. Close the bridge.  2. Delete bridge_token.txt.",
+        "3. Start the bridge again (a NEW token is generated).",
+        "4. Paste the new token into the extension popup once.",
+        "And make sure .gitignore keeps bridge_token.txt ignored.",
+    ])
 
 
 class _Spinner:
@@ -1518,13 +1639,21 @@ async def handler(ws):
         origin = _get_origin_header(ws)
     except Exception:
         origin = ""
+    # Snapshot BEFORE _origin_allowed() runs: on the very first connection
+    # ever that call TOFU-pins this extension's id, and we still need to know
+    # here whether the id was trusted BEFORE this handshake - only then may
+    # the welcome frame below carry the token.
+    _ext_id = _extension_id_from_origin(origin)
+    _ext_known = bool(_ext_id) and _ext_id in PINNED_EXT_IDS
     if not _origin_allowed(origin):
         log(f"rejecting connection from disallowed origin {origin!r} ({peer})", "rd")
         try:
-            # 4401 = "Origin not allowed" (custom close code in the 4000-4999
-            # app-defined range). Closing before we send anything keeps the
-            # handshake from completing.
-            await ws.close(code=4401, reason="origin not allowed")
+            # 4401 = "Origin not allowed", 4402 = "extension id not pinned"
+            # (custom close codes in the 4000-4999 app-defined range). Closing
+            # before we send anything keeps the handshake from completing.
+            await ws.close(code=4402 if _ext_id else 4401,
+                           reason="extension id not pinned" if _ext_id
+                           else "origin not allowed")
         except Exception:
             pass
         return
@@ -1546,21 +1675,19 @@ async def handler(ws):
             # the extension reads it and shows the setup prompt only when the
             # bridge actually enforces it.
             "auth_required": True,
-            # Issue #61 auto-handshake (1.5.6.3+): we send the per-install
-            # auth token IN the welcome frame itself, so the extension can
-            # auto-store it and never asks the user to copy-paste from the
-            # terminal. This is safe because the Origin check above has
-            # ALREADY filtered out non-extension origins - only the user's
-            # own browser extension gets this frame, by definition. The
-            # token still protects against messages from a stale
-            # chrome.storage (e.g. after the bridge was reinstalled with a
-            # fresh bridge_token.txt and the extension still holds the OLD
-            # token): every subsequent message still has to match BRIDGE_TOKEN
-            # in the per-message check below. The extension updates its
-            # stored token from this field whenever the welcome frame
-            # arrives with one; an old/wrong stored token then self-heals
-            # on the next reconnect.
-            "token": BRIDGE_TOKEN,
+            # Issue #61 auto-handshake (1.5.6.3+), tightened in 1.5.6.4: the
+            # welcome frame carries the token ONLY to an extension id that was
+            # already pinned BEFORE this connection. The very first connection
+            # ever gets everything EXCEPT the token - the user pastes it once
+            # from the terminal (or via the popup), the id is TOFU-pinned, and
+            # every later connect handshakes automatically. This closes the
+            # grab-a-wrongly-pinned-id hole: a rogue extension that wins the
+            # first-connect race gets pinned but receives NO token, so it
+            # still cannot drive the bridge; the per-message token check
+            # below stays the second gate either way. The extension ignores
+            # an empty token field (truthy check) so a stored token is never
+            # wiped by this frame.
+            "token": BRIDGE_TOKEN if _ext_known else "",
         }))
         async for raw in ws:
             try:
@@ -2022,6 +2149,25 @@ async def _supervised(name, coro_factory):
             await asyncio.sleep(5)
 
 
+def _check_websockets_version():
+    """Warn when the installed websockets major is outside the validated
+    range. Validated by a live handshake probe (2026-11-02): 12.x (legacy
+    API, ws.request_headers) and 14.x-17.x (asyncio API, ws.request.headers
+    fallback) both deliver the Origin header; the legacy surface is
+    deprecated and a future major could remove `.request` too - which would
+    fail CLOSED (no Origin -> every connection rejected). start.bat pins
+    'websockets>=12,<18' for new installs; this warning catches machines
+    that installed an unbounded latest under earlier start.bat versions."""
+    try:
+        v = tuple(int(p) for p in str(websockets.__version__).split(".")[:2])
+    except Exception:
+        return
+    if v >= (18, 0):
+        log(f"websockets {websockets.__version__} is NEWER than the validated "
+            "range (12.x-17.x). If the extension cannot connect, downgrade: "
+            'pip install --user "websockets>=12,<18"', "yl")
+
+
 async def main():
     global BRIDGE_TOKEN
     print(f"\n{C['cy']}  ZeroScript Bridge v{BRIDGE_VERSION}{C['reset']}  {C['dim']}- Roblox Studio - ws://{HOST}:{PORT}{C['reset']}\n")
@@ -2033,6 +2179,14 @@ async def main():
     # first, in handler() above.
     BRIDGE_TOKEN, _token_just_created = _load_or_create_bridge_token()
     _print_token_banner(BRIDGE_TOKEN, _token_just_created)
+    # 1.5.6.4: warn while the token sits inside a git work tree (PR #121
+    # leaked exactly this way), then load the pinned extension-id allow-list.
+    _warn_token_inside_git_repo()
+    global PINNED_EXT_IDS
+    PINNED_EXT_IDS |= _load_pinned_extension_ids()
+    if PINNED_EXT_IDS:
+        log(f"trusted extension ids: {', '.join(sorted(PINNED_EXT_IDS))}", "cy")
+    _check_websockets_version()
 
     await asyncio.to_thread(_kill_orphan_studio_mcp)
     killed_squatter = await asyncio.to_thread(check_studio_port)

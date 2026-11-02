@@ -1338,8 +1338,118 @@ async def broadcast_status():
             pass
 
 
+# ── SECURITY BACKPORT (PR #121 follow-up, 2026-11-02) ────────────────────────
+# v1.5.5 shipped with NO Origin check at all: any webpage in the user's
+# browser could open ws://127.0.0.1:17613 and drive Roblox Studio. This root
+# copy is legacy (the maintained, fully fixed bridge is Client/bridge.py,
+# v1.5.6.4+); until it is deleted it at least gets the same browser-extension
+# ID allow-list as the maintained bridge (issue #61). There is no per-install
+# token here - the ID allow-list is the only gate this old code gets.
+BRIDGE_EXT_IDS_PATH = os.path.join(HERE, "bridge_extension_ids.txt")
+
+
+def _get_origin_header(ws):
+    """Read the Origin header across websockets API generations (legacy
+    ws.request_headers vs asyncio ws.request.headers). Validated by a live
+    handshake probe on websockets 12.0 / 14.2 / 16.x / 17.4 (2026-11-02)."""
+    try:
+        return ws.request_headers.get("Origin", "") or ""
+    except (AttributeError, KeyError):
+        pass
+    try:
+        return ws.request.headers.get("Origin", "") or ""
+    except (AttributeError, KeyError):
+        pass
+    try:
+        return ws.headers.get("Origin", "") or ""
+    except (AttributeError, KeyError):
+        pass
+    return ""
+
+
+def _extension_id_from_origin(origin):
+    """chrome-extension://<id>/ -> '<id>' (lowercased), '' otherwise."""
+    try:
+        o = (origin or "").strip().lower()
+        for scheme in ("chrome-extension://", "moz-extension://"):
+            if o.startswith(scheme):
+                return o[len(scheme):].split("/", 1)[0].strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _load_pinned_extension_ids():
+    ids = set()
+    try:
+        with open(BRIDGE_EXT_IDS_PATH, "r", encoding="utf-8") as f:
+            for ln in f:
+                ln = ln.split("#", 1)[0].strip().lower()
+                if ln:
+                    ids.add(ln)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log(f"could not read bridge_extension_ids.txt ({e})", "yl")
+    return ids
+
+
+def _pin_extension_id(ext_id):
+    try:
+        with open(BRIDGE_EXT_IDS_PATH, "a", encoding="utf-8") as f:
+            f.write(ext_id + "\n")
+    except Exception as e:
+        log(f"could not persist pinned extension id ({e})", "yl")
+
+
+PINNED_EXT_IDS = _load_pinned_extension_ids()
+
+
+def _origin_allowed(origin):
+    """Same TOFU allow-list as Client/bridge.py 1.5.6.4 - see the full
+    rationale there. Unknown ids are rejected (4402), non-extension origins
+    (pages, null, scripts) are rejected (4401)."""
+    if not origin:
+        return False
+    o = origin.strip().lower()
+    if not (o.startswith("chrome-extension://") or o.startswith("moz-extension://")):
+        return False
+    ext_id = _extension_id_from_origin(o)
+    if not ext_id:
+        return False
+    if PINNED_EXT_IDS:
+        if ext_id in PINNED_EXT_IDS:
+            return True
+        log(f"rejecting UNKNOWN extension id '{ext_id}' - not in "
+            f"bridge_extension_ids.txt. If this IS your extension, delete "
+            "that file and restart to re-pin.", "rd")
+        return False
+    log(f"no extension ids pinned yet - pinning first-seen id '{ext_id}' "
+        "(TOFU). Saved to bridge_extension_ids.txt; delete that file and "
+        "restart if this is not your extension.", "cy")
+    PINNED_EXT_IDS.add(ext_id)
+    _pin_extension_id(ext_id)
+    return True
+
+
 async def handler(ws):
     peer = getattr(ws, "remote_address", ("?",))[0]
+    # Origin gate (security backport): reject everything that is not the
+    # user's own pinned browser extension BEFORE touching any client state.
+    try:
+        origin = _get_origin_header(ws)
+    except Exception:
+        origin = ""
+    _ext_id = _extension_id_from_origin(origin)
+    if not _origin_allowed(origin):
+        log(f"rejecting connection from disallowed origin {origin!r} ({peer})", "rd")
+        try:
+            await ws.close(code=4402 if _ext_id else 4401,
+                           reason="extension id not pinned" if _ext_id
+                           else "origin not allowed")
+        except Exception:
+            pass
+        return
     clients.add(ws)
     log(f"extension connected  ({peer})  [{len(clients)} client(s)]", "gr")
     try:

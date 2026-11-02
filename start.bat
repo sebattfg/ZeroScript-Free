@@ -5,6 +5,17 @@ chcp 65001 >nul
 title ZeroScript Bridge
 cd /d "%~dp0"
 
+REM SECURITY FOLLOW-UP (PR #121): this ROOT launcher runs the legacy 1.5.5
+REM bridge.py with no auth. The maintained, security-fixed bridge lives in
+REM Client\ - if that folder exists, hand over to its launcher instead.
+if exist "%~dp0Client\start.bat" (
+    echo   This root start.bat is the legacy launcher.
+    echo   Starting the maintained Client\start.bat instead...
+    call :log "redirect: legacy root launcher -> Client/start.bat"
+    call "%~dp0Client\start.bat"
+    exit /b %errorlevel%
+)
+
 if not exist "%~dp0logs" mkdir "%~dp0logs" >nul 2>nul
 set "LOGFILE=%~dp0logs\start.log"
 call :log "===== %DATE% %TIME%  start.bat launched ====="
