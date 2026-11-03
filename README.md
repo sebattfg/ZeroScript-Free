@@ -1,4 +1,4 @@
-Its fork, not product. Original to authors. Ignore master branch, use what with 1.5.6
+Its fork, not product. Original to authors. Ignore master branch, use what with 1.6.0
 
 ---
 
