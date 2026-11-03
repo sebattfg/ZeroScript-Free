@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 268px; margin: 0; font-family: "Segoe UI", sans-serif; background: #16161a; color: #e8e8ec; }
+    .wrap { padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+    .ver { font-size: 9.5px; font-weight: 500; letter-spacing: 0.2px;
+           color: rgba(255,255,255,0.55); background: none; border: none;
+           padding: 0; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7280; }
+    .dot.on { background: #34d399; box-shadow: 0 0 8px #34d399; }
+    .dot.warn { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+    .row { font-size: 12px; opacity: 0.85; margin: 6px 0; }
+    button { width: 100%; margin-top: 8px; padding: 8px; border: 0; border-radius: 8px; cursor: pointer; font-size: 12px; }
+    .ghost { background: rgba(255,255,255,0.08); color: #e8e8ec; }
+    .kofi { background: rgba(255,105,135,.16); color: #ff8fa3; border: 1px solid rgba(255,105,135,.4) !important; font-weight: 700; }
+    code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
+
+    /* ── Bridge token setup (issue #61) ─────────────────────────────────── */
+    /* The setup panel is shown when the bridge requires a token AND we
+       don't have one yet. Hidden by default; .token-show flips it on. */
+    .token-panel {
+      display: none;
+      margin: 10px 0 4px;
+      padding: 10px;
+      border: 1px solid rgba(251,191,36,0.4);
+      background: rgba(251,191,36,0.08);
+      border-radius: 8px;
+    }
+    .token-panel.token-show { display: block; }
+    .token-panel.token-ok { border-color: rgba(52,211,153,0.4); background: rgba(52,211,153,0.06); }
+    .token-title { font-size: 12px; font-weight: 700; margin: 0 0 4px; color: #fbbf24; }
+    .token-panel.token-ok .token-title { color: #34d399; }
+    .token-hint { font-size: 11px; opacity: 0.85; margin: 0 0 8px; line-height: 1.4; }
+    .token-hint code { font-family: ui-monospace, monospace; }
+    .token-row { display: flex; gap: 6px; }
+    .token-row input {
+      flex: 1; min-width: 0; padding: 7px 8px; font-size: 12px;
+      font-family: ui-monospace, monospace;
+      background: #0d0d10; color: #e8e8ec;
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
+      outline: none;
+    }
+    .token-row input:focus { border-color: #34d399; }
+    .token-row button {
+      width: auto; margin-top: 0; padding: 7px 12px;
+      background: #34d399; color: #06121a; font-weight: 700;
+      border: 0; border-radius: 6px; cursor: pointer; font-size: 12px;
+    }
+    .token-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .token-status { font-size: 10.5px; margin: 6px 0 0; opacity: 0.8; min-height: 14px; }
+    .token-status.err { color: #f87171; }
+    .token-status.ok { color: #34d399; }
+    .token-toggle { font-size: 10.5px; margin-top: 6px; opacity: 0.7;
+                    cursor: pointer; text-decoration: underline; }
+    .token-toggle:hover { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span id="dot" class="dot"></span> ZeroScript <span id="ver" class="ver"></span> <span style="font-size:9px;opacity:.6">DeepSeek</span></h1>
+
+    <!-- Bridge token setup (issue #61). The bridge prints a per-install
+         token on its terminal; the user pastes it here ONCE. Hidden until
+         the connected bridge tells us auth_required=true AND we have no
+         token in chrome.storage. Once a token is saved, the panel collapses
+         and the small "Change bridge token" link below it takes over - it
+         is OUTSIDE the panel so it stays visible even when the panel is
+         hidden. -->
+    <div id="token-panel" class="token-panel">
+      <div id="token-title" class="token-title">Bridge token required</div>
+      <div id="token-hint" class="token-hint">
+        The bridge prints a token on its terminal at startup (look for the
+        line starting with <code>bridge token:</code>). Copy that value and
+        paste it below. You only do this once.
+      </div>
+      <div class="token-row">
+        <input id="token-input" type="text" placeholder="paste bridge token here" autocomplete="off" spellcheck="false" />
+        <button id="token-save">Save</button>
+      </div>
+      <div id="token-status" class="token-status"></div>
+    </div>
+    <div id="token-toggle" class="token-toggle" style="display:none">Change bridge token</div>
+
+    <div class="row" id="state">Bridge: …</div>
+    <div class="row" id="tools"></div>
+    <div class="row" id="servers" style="white-space:pre-line; font-family:ui-monospace,monospace; opacity:0.75"></div>
+    <button class="ghost" id="reconnect">↻ Reconnect bridge</button>
+    <button class="ghost" id="restart">⟳ Restart Roblox server</button>
+    <button class="ghost" id="settings">⚙ Settings</button>
+    <button class="kofi" id="kofi">♥ Tip the developer on Ko-fi</button>
+    <div class="row" style="margin-top:10px; opacity:0.6">
+      Run <code>start.bat</code> and open <b>Roblox Studio</b>, then go to a supported AI.
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

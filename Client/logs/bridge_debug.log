@@ -1,0 +1,211 @@
+2026-11-01 13:43:30 ===== BRIDGE START  v1.5.6.3  pid=25828  log=D:\ZeroScript\Client\logs\bridge_debug.log =====
+2026-11-01 13:43:30 bridge token: 988c175ee90e02c9c2aaf63bc47c6614
+2026-11-01 13:43:30 configured 1 MCP server(s): roblox
+2026-11-01 13:43:30 listening on ws://127.0.0.1:17613  - load the extension and open a supported AI chat
+2026-11-01 13:43:30 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-01 13:43:30 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-01 13:43:30 [roblox] MCP server up  (34 tools advertised)
+2026-11-01 13:43:35 extension connected  (127.0.0.1)  [1 client(s)]
+2026-11-01 13:43:38     34 Roblox tools loaded, but NO Roblox Studio is connected yet.
+2026-11-01 13:43:38     (This can be a slow attach that clears itself within ~10-15s -
+2026-11-01 13:43:38     watch for a green 'Roblox Studio connected' line right after.)
+2026-11-01 13:43:38 ACTION NEEDED: Open your place in Roblox Studio. | Go to: Assistant Settings > MCP Servers |        > 'Enable Studio as MCP server' | It can take up to ~10s; this window will turn green.
+2026-11-01 22:13:25 ===== BRIDGE START  v1.5.6.3  pid=41600  log=D:\ZeroScript\Client\logs\bridge_debug.log =====
+2026-11-01 22:13:25 bridge_token.txt is present but malformed - generating a new one
+2026-11-01 22:13:25 bridge token: 603a8e21f54824437e19fdc27ce0b105
+2026-11-01 22:13:25 first run: extension will auto-pick-up the token on reconnect
+2026-11-01 22:13:25 configured 1 MCP server(s): roblox
+2026-11-01 22:13:25 listening on ws://127.0.0.1:17613  - load the extension and open a supported AI chat
+2026-11-01 22:13:25 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-01 22:13:25 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-01 22:13:25 [roblox] MCP server up  (34 tools advertised)
+2026-11-01 22:13:31 extension connected  (127.0.0.1)  [1 client(s)]
+2026-11-01 22:13:33     34 Roblox tools loaded, but NO Roblox Studio is connected yet.
+2026-11-01 22:13:33     (This can be a slow attach that clears itself within ~10-15s -
+2026-11-01 22:13:33     watch for a green 'Roblox Studio connected' line right after.)
+2026-11-01 22:13:33 ACTION NEEDED: Open your place in Roblox Studio. | Go to: Assistant Settings > MCP Servers |        > 'Enable Studio as MCP server' | It can take up to ~10s; this window will turn green.
+2026-11-02 11:26:40 ===== BRIDGE START  v1.5.6.3  pid=4104  log=D:\ZeroScript\Client\logs\bridge_debug.log =====
+2026-11-02 11:26:40 bridge token: 603a8e21f54824437e19fdc27ce0b105
+2026-11-02 11:26:41 configured 1 MCP server(s): roblox
+2026-11-02 11:26:41 listening on ws://127.0.0.1:17613  - load the extension and open a supported AI chat
+2026-11-02 11:26:41 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 11:26:41 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 11:26:41 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 11:26:44 extension connected  (127.0.0.1)  [1 client(s)]
+2026-11-02 11:26:49     34 Roblox tools loaded, but NO Roblox Studio is connected yet.
+2026-11-02 11:26:49     (This can be a slow attach that clears itself within ~10-15s -
+2026-11-02 11:26:49     watch for a green 'Roblox Studio connected' line right after.)
+2026-11-02 11:26:49 ACTION NEEDED: Open your place in Roblox Studio. | Go to: Assistant Settings > MCP Servers |        > 'Enable Studio as MCP server' | It can take up to ~10s; this window will turn green.
+2026-11-02 11:37:26 [roblox] stderr: 2026-11-02T08:37:26.981381Z  WARN studio_mcp_proxy::ws_server::server: No proxy found waiting for response init-tools-39817545-7a47-4663-8a1b-83b081a97856-42289100-1d1c-43b7-b002-6fec49e21eee
+2026-11-02 11:37:29 Roblox Studio connected - 34 tools ready.
+2026-11-02 11:37:30 Place loaded in Studio.
+2026-11-02 11:46:07 [roblox] stderr: 2026-11-02T08:46:07.902035Z  WARN studio_mcp_proxy::ws_server::server: No proxy found waiting for response init-tools-19897603-2d1c-43e1-8430-edf7797f5076-bd3aaa0a-30dd-4d30-a0c7-ccb47d3ed852
+2026-11-02 11:46:21 Roblox Studio disconnected - re-enable its MCP server (toggle off/on).
+2026-11-02 11:46:22 Place closed (Studio app still connected).
+2026-11-02 11:46:42 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:46:42 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:46:42 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:48:15 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:48:15 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:48:15 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:49:47 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:49:47 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:49:47 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:51:19 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:51:19 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:51:19 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:52:51 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:52:51 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:52:51 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:54:24 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:54:24 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:54:24 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:55:56 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:55:56 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:55:56 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:57:28 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:57:28 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:57:28 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 11:59:00 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 11:59:00 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 11:59:00 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:00:33 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:00:33 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:00:33 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:02:05 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:02:05 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:02:05 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:03:37 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:03:37 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:03:37 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:05:10 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:05:10 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:05:10 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:06:42 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:06:42 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:06:42 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:08:14 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:08:14 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:08:14 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:09:46 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:09:46 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:09:46 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:11:19 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:11:19 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:11:19 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:12:51 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:12:51 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:12:51 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:14:23 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:14:23 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:14:23 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:15:55 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:15:55 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:15:55 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:17:28 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:17:28 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:17:28 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:19:00 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:19:00 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:19:00 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:20:32 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:20:32 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:20:32 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:22:04 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:22:04 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:22:04 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:23:37 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:23:37 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:23:37 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:25:09 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:25:09 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:25:09 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:26:41 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:26:41 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:26:41 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:28:13 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:28:13 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:28:13 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:29:46 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:29:46 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:29:46 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:31:18 Roblox Studio is RUNNING but its MCP plugin has not registered with the bridge yet.
+2026-11-02 12:31:18 If Studio is still STARTING UP, give it a minute (its plugin registers late in boot).
+2026-11-02 12:31:18 If Studio is fully loaded and this stays yellow: in Roblox Studio, simply OPEN Assistant Settings > MCP Servers - opening that panel makes the plugin re-register (validated twice live). If that's not enough, toggle 'Enable Studio as MCP server' OFF then ON there.
+2026-11-02 12:32:09 [roblox] stderr: 2026-11-02T09:32:09.310790Z  WARN studio_mcp_proxy::ws_server::server: No proxy found waiting for response init-tools-e153319c-34d0-495d-9657-a27d949071ca-1c015ed0-0406-48bc-a85f-1a71a78b78af
+2026-11-02 12:32:10 Roblox Studio connected - 34 tools ready.
+2026-11-02 12:32:11 Place loaded in Studio.
+2026-11-02 12:35:43 -> tool  read_console()
+2026-11-02 12:35:43 <- read_console (0.0s): unknown tool 'read_console'
+2026-11-02 12:39:58 -> tool  get_console_output()
+2026-11-02 12:39:58 <- get_console_output (0.0s): ContentId: rbxassetid://90147527216904 failed due to: User is not authorized to 
+2026-11-02 12:46:06 -> tool  get_console_output()
+2026-11-02 12:46:06 <- get_console_output (0.0s): ContentId: rbxassetid://90147527216904 failed due to: User is not authorized to 
+2026-11-02 12:53:01 -> tool  get_console_output()
+2026-11-02 12:53:01 <- get_console_output (0.0s): ContentId: rbxassetid://90147527216904 failed due to: User is not authorized to 
+2026-11-02 12:53:46 -> tool  get_studio_state()
+2026-11-02 12:53:46 <- get_studio_state (0.0s): - Current Studio Mode: Edit - Available DataModels: Edit - Focused DataModel in 
+2026-11-02 12:54:15 -> tool  script_read(target_file, start_line_one_indexed, end_line_one_indexed_inclusive, should_read_entire_file)
+2026-11-02 12:54:16 <- script_read (0.9s):    930→				task.wait(cooldown)    931→				onCooldown = false    932→			end)    9
+2026-11-02 13:04:12 -> tool  execute_luau(code, datamodel_type)
+2026-11-02 13:04:12 <- execute_luau (0.0s): NOMATCH
+2026-11-02 13:40:16 -> tool  execute_luau(code, datamodel_type)
+2026-11-02 13:40:16 <- execute_luau (0.0s): NOMATCH snippet: [Visibility").OnClientEvent:Connect(function(part,transparency)
+2026-11-02 13:41:36 -> tool  execute_luau(code, datamodel_type)
+2026-11-02 13:41:36 <- execute_luau (0.0s): GUARDED at byte 30831, new len 46435
+2026-11-02 13:42:09 -> tool  script_read(target_file, start_line_one_indexed, end_line_one_indexed_inclusive, should_read_entire_file)
+2026-11-02 13:42:09 <- script_read (0.0s):    947→remotes:WaitForChild("Visibility").OnClientEvent:Connect(function(part,tr
+2026-11-02 13:42:44 -> tool  execute_luau(code, datamodel_type)
+2026-11-02 13:42:44 <- execute_luau (0.0s): PATCHED=2 noted=true
+2026-11-02 13:43:07 -> tool  script_read(target_file, should_read_entire_file)
+2026-11-02 13:43:07 <- script_read (0.0s):      1→-- AIController: stealth enemy with pistol (patrol, LOS, panic, ballistic
+2026-11-02 13:47:49 -> tool  execute_luau(code, datamodel_type)
+2026-11-02 13:47:49 <- execute_luau (0.0s): rewrote AIController, new len 11652
+2026-11-02 13:53:03 -> tool  script_read(target_file, start_line_one_indexed, end_line_one_indexed_inclusive, should_read_entire_file)
+2026-11-02 13:53:03 <- script_read (0.0s):      1→-- AIController: stealth enemy with pistol (patrol, LOS, panic, ballistic
+2026-11-02 13:53:45 [roblox] stderr: 2026-11-02T10:53:45.791336Z ERROR studio_mcp_proxy::ws_server::server: WebSocket error from studio e153319c-34d0-495d-9657-a27d949071ca: IO error: Удаленный хост принудительно разорвал существующее подключение. (os error 10054)
+2026-11-02 13:53:54 Roblox Studio disconnected - re-enable its MCP server (toggle off/on).
+2026-11-02 13:53:56 Place closed (Studio app still connected).
+2026-11-02 13:54:16 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 13:54:16 [roblox] restarting...
+2026-11-02 13:54:16 [roblox] stdout closed (process ended, exit code 1)
+2026-11-02 13:54:16 [roblox] found dead - auto-restarting...
+2026-11-02 13:54:16 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 13:54:16 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 13:54:17 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 13:55:49 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 13:55:49 [roblox] restarting...
+2026-11-02 13:55:49 [roblox] stdout closed (process ended, exit code None)
+2026-11-02 13:55:50 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 13:55:50 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 13:55:50 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 13:57:23 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 13:57:23 [roblox] restarting...
+2026-11-02 13:57:23 [roblox] stdout closed (process ended, exit code None)
+2026-11-02 13:57:23 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 13:57:23 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 13:57:24 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 13:58:56 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 13:58:56 [roblox] restarting...
+2026-11-02 13:58:56 [roblox] stdout closed (process ended, exit code None)
+2026-11-02 13:58:57 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 13:58:57 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 13:58:57 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 14:00:30 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 14:00:30 [roblox] restarting...
+2026-11-02 14:00:30 [roblox] stdout closed (process ended, exit code 1)
+2026-11-02 14:00:30 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 14:00:30 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 14:00:31 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 14:02:03 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 14:02:03 [roblox] restarting...
+2026-11-02 14:02:03 [roblox] stdout closed (process ended, exit code 1)
+2026-11-02 14:02:04 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 14:02:04 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 14:02:04 [roblox] MCP server up  (34 tools advertised)
+2026-11-02 14:03:37 Roblox Studio proxy looks stuck (known StudioMCP disconnect bug) - restarting it to recover.
+2026-11-02 14:03:37 [roblox] restarting...
+2026-11-02 14:03:37 [roblox] stdout closed (process ended, exit code None)
+2026-11-02 14:03:37 [roblox] launching  (D:\pno\python\python.exe D:\ZeroScript\Client\launch_studio_mcp.py)
+2026-11-02 14:03:37 [roblox] stderr: launch_studio_mcp: using C:\Users\����\AppData\Local\Roblox\Versions\version-7062aec9dbe74b14\StudioMCP.exe
+2026-11-02 14:03:38 [roblox] MCP server up  (34 tools advertised)
