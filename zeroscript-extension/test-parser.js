@@ -45,6 +45,8 @@ ok("open json command detected", ZSParse.hasOpenToolBlock('{"command":"multi_edi
 
 ok("prose has no signature", ZSParse.hasToolSignature("Here is how you could use a command in theory.") === false);
 ok("command shape detected", ZSParse.hasCommandShape('{"command":"x"}') === true);
+ok("wrong-key command shape is masked", ZSParse.hasCommandShape('{"toolName":"script_read","path":"game.Workspace"}') === true);
+ok("wrong-key tool name is surfaced", ZSParse.toolNameFromText('{"toolName":"script_read","path":"game.Workspace"}') === "script_read");
 ok("injected feedback detected", ZSParse.isInjectedFeedback("Output of 'execute_luau':\n2") === true);
 ok("parse-error note is feedback not command", ZSParse.isInjectedFeedback('ERROR: bad JSON, write {"command": "name"}') === true);
 ok("tool name mid-stream", ZSParse.toolNameFromText('{"command":"multi_ed') === "multi_ed");
