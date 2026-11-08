@@ -54,9 +54,14 @@ const ZSParse = (() => {
   // object is OPTIONAL: paramless commands like list_commands are written as
   // `{"command":"list_commands"}`, so requiring "params" too would MISS them
   // (they'd be shown raw and never executed). We key on the `"command":"…"` /
-  // `"tool":"…"` shape instead - a string-valued key, which prose almost never
-  // contains - so paramless calls are detected without false-positiving on text.
+  // `"tool":"…"` shape for the strict parser gate, because these are the only
+  // keys ZeroScript accepts. Some models still emit a legacy function-calling
+  // shape instead (e.g. `{"toolName":"script_read"}`), which is not a valid
+  // ZeroScript command but it is still a command-turn attempt that the UI must
+  // camouflage instead of showing raw. That wider shape stays out of
+  // hasToolSignature() so the parse-error ladder still fires correctly.
   const CMD_KEY_RE = /"(?:command|tool)"\s*:\s*"/;
+  const CMD_SHAPE_RE = /"(?:command|tool|toolName|tool_name|name|function|action)"\s*:\s*(?:"[^"]*"|[A-Za-z0-9_.\/\-]+)/;
 
   // DeepSeek's OWN agentic tool-call markup ("DSML"), which it sometimes emits
   // instead of a ZeroScript command - seen live in user reports, DeepSeek only:
@@ -341,8 +346,11 @@ const ZSParse = (() => {
     // Trim: while the value is still streaming it can be whitespace-only (e.g.
     // Kimi renders `"tool": "    "` for a beat), which would otherwise show a
     // blank chip label until the loop repaints it. A whitespace value falls
-    // through to the placeholder below instead.
-    const m = txt.match(/"(?:command|tool)"\s*:\s*"([^"]*)/);
+    // through to the placeholder below instead. We also accept the function-
+    // calling variants (`toolName`, `name`, `function`, ...) as a command attempt
+    // so a raw wrong-key call still shows a useful chip while the parse-error
+    // loop asks for a rewrite.
+    const m = txt.match(/"(?:command|tool|toolName|tool_name|name|function|action)"\s*:\s*"([^"]*)/);
     if (m && m[1].trim()) return m[1].trim();
     if (txt.includes("execute_luau") || LUA_START_RE.test(txt)) return "execute_luau";
     return "command";
@@ -371,7 +379,7 @@ const ZSParse = (() => {
     return txt.includes(START_M) ||
            LUA_START_RE.test(txt) ||
            DSML_RE.test(txt) ||
-           CMD_KEY_RE.test(txt); // command/tool with OR without params (e.g. list_commands)
+           CMD_SHAPE_RE.test(txt); // includes the valid command keys and the legacy wrong-key function-calling variants
   }
 
   return {
