@@ -4,7 +4,7 @@
 ![Editor](https://img.shields.io/badge/editors-multi--editor%20%C2%B7%20Godot%204.7.2-478cbf)
 ![Languages](https://img.shields.io/badge/scripts-GDScript%20%2B%20C%23-2f9e44)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.2.0-6366f1)
+![Version](https://img.shields.io/badge/version-0.2.1-6366f1)
 
 ![NonZeroScript banner](assets/banner.svg)
 
@@ -64,7 +64,16 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 
 ## Download and install
 
-Everything you need is one archive: download **`NonZeroScript-0.2.0.zip`** from [Releases](../../releases) — or straight from [`dist/`](dist) — and extract it. It contains the controller, the browser extension and the Godot plugin; then follow the three steps below.
+Four separate packages, all on the [Releases](../../releases) page (and in [`dist/`](dist)). You need the first three; `prompts.zip` is the reference copy of what the AI is told.
+
+| Package | What it is | Where it goes |
+|---|---|---|
+| **`controller.zip`** | visual console + local relay | anywhere, double-click the launcher |
+| **`extension.zip`** | Chrome / Edge extension | load unpacked, keep the folder |
+| **`editor-godot-4.7.2.zip`** | Godot 4.7.2 plugin | `addons/nonzeroscript` in your project |
+| `prompts.zip` | the instructions the AI is given | read-only reference |
+
+Each one contains its own `INSTALL.txt`. Download, extract, then follow the three steps below.
 
 > **Platforms:** Windows 10/11 and macOS, 64-bit and 32-bit. **Linux is not supported** — no Linux launcher, no Linux package, no Linux instructions.
 

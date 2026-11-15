@@ -16,7 +16,7 @@ extends Node
 signal status_changed(info: Dictionary)
 signal log_line(text: String)
 
-const PLUGIN_VERSION := "0.2.0"
+const PLUGIN_VERSION := "0.2.1"
 const CONFIG_PATH := "user://nonzeroscript_editor.cfg"
 # The controller's performance mode sends its preferred cadence in
 # /api/editor/poll -> settings.poll_ms (400 ms balanced, 1000 ms eco).

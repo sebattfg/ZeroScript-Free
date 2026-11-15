@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 — 2026-11-15
+
+### 变化
+
+- **改成四个独立的下载包**，不再把它们合并成一个大压缩包：
+  - `controller.zip` —— 可视化操控台 + 本地中转
+  - `extension.zip` —— Chrome / Edge 插件
+  - `editor-godot-4.7.2.zip` —— Godot 4.7.2 插件（安装到 `addons/nonzeroscript`）
+  - `prompts.zip` —— 给 AI 的指令（系统提示词、行为规则、命令目录、修复提示），只读参考
+- 每个包里都有自己的 `INSTALL.txt`，按需下载，不用为了一个插件把整包都下下来。
+
 ## 0.2.0 — 2026-11-15
 
 ### New
