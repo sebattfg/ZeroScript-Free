@@ -1,4 +1,8 @@
-﻿# Local-only folders
+# Bridge auth token (per-install, never commit)
+bridge_token.txt
+Client/bridge_token.txt
+
+# Local-only folders
 Compressed/
 Deprecated/
 ExtensionPresentation/

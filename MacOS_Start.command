@@ -15,6 +15,15 @@ set -u
 # where Finder launched it from.
 cd "$(dirname "$0")" || exit 1
 
+# SECURITY FOLLOW-UP (PR #121): this ROOT launcher runs the legacy 1.5.5
+# bridge.py with no auth. The maintained, security-fixed bridge lives in
+# Client/ - if that folder exists, hand over to its launcher instead.
+if [ -f "Client/MacOS_Start.command" ]; then
+    echo "This root MacOS_Start.command is the legacy launcher."
+    echo "Starting the maintained Client/MacOS_Start.command instead..."
+    exec bash "Client/MacOS_Start.command"
+fi
+
 BRIDGE_PORT="${ZS_BRIDGE_PORT:-17613}"
 LOG_DIR="logs"
 LOG_FILE="$LOG_DIR/start.log"

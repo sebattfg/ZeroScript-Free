@@ -10,7 +10,7 @@ It's a Chrome/Edge browser extension plus a small local bridge that connects the
 1. Go to `edge://extensions` (Edge) or `chrome://extensions` (Chrome)
 2. Enable **Developer mode** (top right toggle)
 3. Click **Load unpacked**
-4. Select the `zeroscript-extension` folder
+4. Select the `Extension` folder
 5. The extension is now active
 
 **Then set up the Bridge:**

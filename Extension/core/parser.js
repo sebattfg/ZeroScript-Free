@@ -348,12 +348,17 @@ const ZSParse = (() => {
     return "command";
   }
 
-  // A turn the EXTENSION injected (always sent as a user turn): a tool result, an
-  // ERROR, or a "(System note: …)" control message. Matched ONLY by the fixed
+  // A turn the EXTENSION injected (always sent as a user turn): a tool result, a
+  // failure note, or a "(System note: …)" control message. Matched ONLY by the fixed
   // shapes we emit - never by command-like keywords, since a parse-error note
   // quotes a {"command": …} example that must NOT be read as a real command.
+  // The failure lead used to be a bare "ERROR:"; it is now ZS.ERR_LEAD ("Not
+  // working command because mistakes:") so the conversation does not carry the
+  // same machine marker on every failure turn. Both shapes stay recognised so
+  // chats that started on an older build still camouflage correctly.
   function isInjectedFeedback(txt) {
     return /^\s*Output of '/.test(txt) ||
+           /^\s*Not working command because mistakes:/.test(txt) ||
            /^\s*ERROR\b/.test(txt) ||
            /^\s*\(System note:/.test(txt);
   }
