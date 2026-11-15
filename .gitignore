@@ -1,5 +1,7 @@
-# Build output
-dist/
+# Build output: dist/ is committed on purpose (the repository is the download),
+# but temporary exe/PyInstaller output is not.
+dist/exe/
+dist/_pyinstaller/
 
 # Controller runtime data: settings.json + timeline memory (local, private)
 controller/data/
@@ -9,8 +11,9 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Archives
+# Archives elsewhere in the tree (release zips in dist/ are tracked)
 *.zip
+!dist/*.zip
 
 # Node (parser test tooling only)
 node_modules/

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// app.js - the visual console. Vanilla JS, no build step, polling every 1.2s.
+// app.js - the visual console. Vanilla JS, no build step; the poll interval
+// follows the performance mode (400 ms turbo .. 2 s eco, see /api/status.perf).
 
 (() => {
   "use strict";
@@ -88,6 +89,17 @@
     const ready = (st.sessions || []).filter((s) => s.ready).length;
     $("session-pill").textContent = `${ready} / ${(st.sessions || []).length}`;
     $("uptime").textContent = `控制器已运行 ${Math.floor((st.uptime || 0) / 60)} 分 ${(st.uptime || 0) % 60} 秒`;
+    const perf = st.perf || {};
+    const perfPill = $("perf-pill");
+    if (perfPill) perfPill.textContent = perf.label || "平均";
+    const perfNote = $("perf-mode-note");
+    if (perfNote) {
+      perfNote.textContent = perf.rss_mb
+        ? `${perf.label || ""} · 内存 ${perf.rss_mb} MB · 日志 ${perf.log_limit} 条`
+        : (perf.label || "");
+    }
+    const rss = $("rss");
+    if (rss) rss.textContent = perf.rss_mb ? `内存 ${perf.rss_mb} MB` : "";
   }
 
   // ── tasks ───────────────────────────────────────────────────────────────
@@ -172,8 +184,12 @@
 
   function renderSessions(st) {
     const list = st.sessions || [];
+    const rot = st.rotation || {};
+    let rotText = "没有可轮换的会话";
+    if (rot.active) rotText = `轮换中 · ${rot.eligible} 个浏览器`;
+    else if (rot.eligible === 1) rotText = "单浏览器模式（再勾选一个即轮换）";
     $("sessions-note").textContent = list.length
-      ? `${list.filter((s) => s.ready).length} 个就绪 · ${list.length} 个已连接`
+      ? `${list.filter((s) => s.ready).length} 个就绪 · ${list.filter((s) => s.enabled).length} 个参与轮换 · ${rotText}`
       : "在 AI 页面点“启动”后会出现在这里";
     const html = list.length
       ? list.map(sessionHtml).join("")
@@ -227,6 +243,8 @@
     setValue("rotation", s.rotation);
     setValue("auto-start", s.auto_start_queue);
     setValue("custom-prompt", s.custom_prompt);
+    setValue("perf-mode", s.perf_mode || "balanced");
+    setValue("memory-keep", s.memory_keep_days == null ? 0 : s.memory_keep_days);
     state.settingsLoaded = true;
   }
 
@@ -239,6 +257,7 @@
       rotation: $("rotation").checked,
       auto_start_queue: $("auto-start").checked,
       custom_prompt: $("custom-prompt").value,
+      memory_keep_days: Number($("memory-keep").value || 0),
     };
     if (body.max_delay < body.min_delay) {
       toast("最大秒数必须大于或等于最小秒数", "err");
@@ -439,6 +458,38 @@
     }
   }
 
+  // ── performance mode / bulk session toggles ─────────────────────────────
+  async function applyPerf() {
+    const mode = $("perf-mode").value;
+    const r = await api("api/settings", {
+      perf_mode: mode,
+      memory_keep_days: Number($("memory-keep").value || 0),
+    });
+    if (!r || !r.ok) {
+      toast((r && r.error) || "切换失败", "err");
+      return;
+    }
+    state.settingsLoaded = false;
+    fillSettings({ settings: r.settings });
+    toast(`已切换到${mode === "eco" ? "极致性能" : mode === "turbo" ? "最快速度" : "平均"}模式`, "ok");
+    refresh();
+  }
+
+  async function setAllSessions(enabled) {
+    const list = (state.status && state.status.sessions) || [];
+    if (!list.length) {
+      toast("还没有已连接的会话", "warn");
+      return;
+    }
+    let n = 0;
+    for (const s of list) {
+      const r = await api("api/session/enable", { sessionId: s.id, enabled });
+      if (r && r.ok) n++;
+    }
+    toast(`已${enabled ? "启用" : "停用"} ${n} 个会话的轮换`, "ok");
+    refresh();
+  }
+
   // ── events ──────────────────────────────────────────────────────────────
   $("add-task").addEventListener("click", addTask);
   $("prompt").addEventListener("keydown", (e) => {
@@ -446,6 +497,9 @@
   });
   $("stop-all").addEventListener("click", stopAll);
   $("save-settings").addEventListener("click", saveSettings);
+  $("apply-perf").addEventListener("click", applyPerf);
+  $("sessions-all").addEventListener("click", () => setAllSessions(true));
+  $("sessions-none").addEventListener("click", () => setAllSessions(false));
   $("test-run").addEventListener("click", runTest);
   $("test-cmd").addEventListener("change", fillTestParams);
 
@@ -489,6 +543,11 @@
     );
   });
 
-  refresh();
-  setInterval(refresh, 1200);
+  // The poll interval follows the performance mode.
+  async function loop() {
+    await refresh();
+    const ms = (state.status && state.status.perf && state.status.perf.ui_refresh_ms) || 1200;
+    setTimeout(loop, ms);
+  }
+  loop();
 })();

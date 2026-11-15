@@ -93,7 +93,7 @@
       bar.id = "zs-bar";
       bar.className = `zs-bar zs-prov-${P.id}`;
       bar.innerHTML = `
-        <span id="zs-brand" title="NonZeroScript · Godot edition"><span class="zs-logo">&lt;/&gt;</span><b>NonZeroScript</b></span>
+        <span id="zs-brand" title="NonZeroScript · 多编辑器"><span class="zs-logo">&lt;/&gt;</span><b>NonZeroScript</b></span>
         <span id="zs-dot" class="zs-dot"></span>
         <span id="zs-state">正在连接操控台…</span>
         <span id="zs-extra"></span>
@@ -212,9 +212,12 @@
       const delay = `${fmtSec(settings.min_delay)}-${fmtSec(settings.max_delay)}s`;
       const provider = P.displayName || P.id;
       const extraBase = `${state.browser} · ${provider} · 延迟 ${delay}`;
+      const editorName = state.editorConnected
+        ? (state.editorCSharp ? "GDScript + C#" : "GDScript")
+        : "";
       const editor = state.editorConnected
-        ? `Godot 已连接 · ${state.editorCSharp ? "GDScript + C#" : "GDScript"}`
-        : "Godot 未连接";
+        ? `编辑器已连接 · ${editorName}`
+        : "编辑器未连接";
       setBusyVisual(state.busy || state.starting);
 
       if (state.controllerOnline === false) {
@@ -394,7 +397,9 @@
       runAssignment(r.assign);
     }
     ui.render();
-    schedulePoll(state.busy ? 3000 : 1200);
+    // The console's performance mode sets the cadence (500 ms turbo .. 1.5 s eco).
+    const pollMs = Math.max(200, Number((state.settings || {}).poll_ms) || 1200);
+    schedulePoll(state.busy ? Math.max(pollMs, 2500) : pollMs);
   }
 
   // ════════════════════════════════════════════════════════════════════════

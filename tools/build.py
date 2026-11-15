@@ -6,6 +6,7 @@ This is a manual, offline build. There is deliberately no CI job that runs it.
 
     python3 tools/build.py            # dist/*.zip + SHA256SUMS.txt
     python3 tools/build.py --clean    # remove dist/ first
+    python3 tools/build.py --check    # verify versions + prompt docs, build nothing
     python3 tools/build.py --exe      # also build a single-file controller exe
                                       # (requires: pip install pyinstaller)
 
@@ -23,6 +24,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +37,18 @@ DIST = ROOT / "dist"
 SKIP_NAMES = {"__pycache__", "node_modules", ".git", ".godot", "dist", ".arena"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".zip", ".DS_Store"}
 DOC_FILES = ["README.md", "README.zh-CN.md", "LICENSE", "NOTICE", "CHANGELOG.md", "version.txt"]
+
+# Every place that hard-codes the release version. The build refuses to run when
+# they disagree, which is the cheapest possible release check.
+VERSION_SOURCES: list[tuple[str, str]] = [
+    ("version.txt", r"^\s*([0-9]+\.[0-9]+\.[0-9]+)"),
+    ("controller/version.py", r'__version__\s*=\s*"([^"]+)"'),
+    ("extension/manifest.json", r'"version"\s*:\s*"([^"]+)"'),
+    ("controller/tools.json", r'"version"\s*:\s*"([^"]+)"'),
+    ("editor/godot-4.7.2/plugin.cfg", r'^version="([^"]+)"'),
+    ("editor/godot-4.7.2/core/commands.gd", r'const VERSION := "([^"]+)"'),
+    ("editor/godot-4.7.2/core/bridge.gd", r'const PLUGIN_VERSION := "([^"]+)"'),
+]
 
 
 def read_version() -> str:
@@ -74,6 +88,41 @@ def add_bytes(zf: zipfile.ZipFile, arcname: str, text: str) -> None:
     zf.writestr(arcname, text.replace("\r\n", "\n"), compress_type=zipfile.ZIP_DEFLATED)
 
 
+def check_versions() -> list[str]:
+    """Return a list of version mismatches (empty = consistent)."""
+    expected = read_version()
+    problems: list[str] = []
+    if expected == "0.0.0":
+        problems.append("version.txt is missing or empty")
+    for rel, pattern in VERSION_SOURCES:
+        path = ROOT / rel
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            problems.append(f"{rel}: missing")
+            continue
+        match = re.search(pattern, text, re.MULTILINE)
+        if not match:
+            problems.append(f"{rel}: no version string found")
+        elif match.group(1) != expected:
+            problems.append(f"{rel}: {match.group(1)} != {expected}")
+    return problems
+
+
+def check_prompts() -> list[str]:
+    """Prompt docs must match tools.json and config.js (tools/prompts.py --check)."""
+    script = ROOT / "tools" / "prompts.py"
+    if not script.exists():
+        return ["tools/prompts.py is missing"]
+    result = subprocess.run(
+        [sys.executable, str(script), "--check"], cwd=ROOT, capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return []
+    out = (result.stdout or "") + (result.stderr or "")
+    return [line for line in out.splitlines() if line.strip()] or ["prompt docs are out of date"]
+
+
 def install_text(kind: str) -> str:
     version = read_version()
     common = f"NonZeroScript {version}\n{'=' * (16 + len(version))}\n\n"
@@ -82,9 +131,9 @@ def install_text(kind: str) -> str:
             "Controller (visual console + local relay)\n\n"
             "1. Install Python 3.9 or newer: https://www.python.org/downloads/\n"
             "2. Double-click one of:\n"
-            "     Windows   controller/start.bat\n"
-            "     macOS     controller/start.command  (right-click > Open the first time)\n"
-            "     Linux     controller/start.sh\n"
+            "     Windows 10/11   controller/start.bat\n"
+            "     macOS           controller/start.command  (right-click > Open the first time)\n"
+            "   Windows and macOS are supported in 64-bit and 32-bit; Linux is not supported.\n"
             "3. The console opens at http://127.0.0.1:8790/\n\n"
             "Keep the window open while you work. Standard library only: no pip install.\n"
         )
@@ -187,6 +236,11 @@ def build_combined(path: Path, version: str, editor_zips: list[tuple[Path, Path,
                 zf.write(src, name)
                 count += 1
         count += add_tree(zf, ROOT / "assets", "assets")
+        count += add_tree(zf, ROOT / "prompts", "prompts")
+        protocol = ROOT / "editor" / "PROTOCOL.md"
+        if protocol.exists():
+            zf.write(protocol, "editor/PROTOCOL.md")
+            count += 1
         count += add_tree(zf, ROOT / "controller", "controller", skip_top=("data",))
         count += add_tree(zf, ROOT / "extension", "extension")
         for folder, _zip_path, meta in editor_zips:
@@ -251,51 +305,38 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def check_versions(version: str) -> None:
-    checks = [
-        (ROOT / "extension" / "manifest.json", ("version",), json.loads),
-        (ROOT / "controller" / "version.py", ("__version__",), None),
-    ]
-    cfg = ROOT / "editor" / "godot-4.7.2" / "plugin.cfg"
-    if cfg.exists():
-        for line in cfg.read_text(encoding="utf-8").splitlines():
-            if line.strip().startswith("version="):
-                found = line.split("=", 1)[1].strip().strip('"')
-                if found != version:
-                    print(f"  [!] editor/godot-4.7.2/plugin.cfg is {found}, expected {version}")
-                break
-    for path, _keys, loader in checks:
-        if not path.exists():
-            continue
-        try:
-            if loader is json.loads:
-                found = json.loads(path.read_text(encoding="utf-8")).get("version")
-            else:
-                found = None
-                for line in path.read_text(encoding="utf-8").splitlines():
-                    if line.strip().startswith("__version__"):
-                        found = line.split("=", 1)[1].strip().strip('"\'')
-                        break
-            if found and found != version:
-                print(f"  [!] {path.relative_to(ROOT)} is {found}, expected {version}")
-        except (OSError, ValueError) as exc:
-            print(f"  [!] could not read {path.relative_to(ROOT)}: {exc}")
-
-
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Build NonZeroScript release archives (manual, offline)")
     ap.add_argument("--clean", action="store_true", help="delete dist/ before building")
     ap.add_argument("--exe", action="store_true", help="also build a single-file controller with PyInstaller")
+    ap.add_argument("--check", action="store_true", help="verify versions + prompt docs, build nothing")
     args = ap.parse_args(argv)
 
     version = read_version()
+    problems = check_versions() + check_prompts()
+
+    if args.check:
+        if problems:
+            for p in problems:
+                print(f"FAIL {p}")
+            print(f"\n{len(problems)} problem(s).")
+            return 1
+        print(f"OK NonZeroScript {version}: versions and prompt docs are consistent")
+        return 0
+
+    if problems:
+        print("\nRefusing to build: release metadata is inconsistent.\n")
+        for p in problems:
+            print(f"  [!] {p}")
+        print("\nRun `python3 tools/build.py --check` for details.\n")
+        return 1
+
     if args.clean and DIST.exists():
         shutil.rmtree(DIST)
     DIST.mkdir(parents=True, exist_ok=True)
 
     print(f"\nNonZeroScript {version} — building release archives\n")
-    print("Version check:")
-    check_versions(version)
+    print(f"Version check: {version} everywhere, prompt docs in sync")
 
     produced: list[Path] = []
 
@@ -342,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nChecksums -> {sums.relative_to(ROOT)}")
     for line in lines:
         print("  " + line)
-    print("\nDone. Archives are in dist/ (not committed; see .gitignore).\n")
+    print("\nDone. Archives are in dist/ (committed on purpose: the repo is the download).\n")
     return 0
 
 

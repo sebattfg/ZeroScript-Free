@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """NonZeroScript controller - visual console + local relay.
 
-Run by double-clicking start.bat / start.command / start.sh, or:
+Run by double-clicking start.bat (Windows 10/11) or start.command (macOS), or:
 
     python main.py                 # 127.0.0.1:8790, opens the console
     python main.py --host 0.0.0.0  # only for a sandbox/remote demo

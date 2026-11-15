@@ -220,7 +220,13 @@ class Handler(BaseHTTPRequestHandler):
                 data = hub.settings.update(p)
                 hub.host = str(data.get("host"))
                 hub.port = int(data.get("port"))
+                hub.apply_runtime_settings()
                 hub.log("settings", "设置已更新")
+                keep_days = int(data.get("memory_keep_days") or 0)
+                if keep_days > 0:
+                    removed = hub.memory.prune(keep_days)
+                    if removed:
+                        hub.log("memory", f"清理了 {removed} 个超过 {keep_days} 天的时间线文件")
                 return self._json({"ok": True, "settings": data})
             return self._json({"ok": True, "settings": hub.settings.data})
 
@@ -282,6 +288,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "ok": True,
                     "root": str(mem.root),
+                    "disk": mem.disk_usage(),
                     "tasks": mem.list_tasks(),
                     "sessions": mem.list_sessions(),
                 }

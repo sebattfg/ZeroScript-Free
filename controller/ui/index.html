@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NonZeroScript · Godot 操控台</title>
+  <title>NonZeroScript · 可视化操控台</title>
   <link rel="icon" href="icon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -13,15 +13,16 @@
       <span class="logo">&lt;/&gt;</span>
       <div>
         <h1>NonZeroScript</h1>
-        <p>Godot 4.7.2 可视化操控台 · ZeroScript 官方衍生版</p>
+        <p>多编辑器可视化操控台 · Godot 4.7.2 适配器已内置 · ZeroScript 官方衍生版</p>
       </div>
     </div>
     <div class="pills">
       <span class="pill" id="pill-controller"><i class="dot ok"></i> 中转 <b id="ver">…</b></span>
-      <span class="pill" id="pill-editor"><i class="dot"></i> Godot <b id="editor-pill">未连接</b></span>
+      <span class="pill" id="pill-editor"><i class="dot"></i> 编辑器 <b id="editor-pill">未连接</b></span>
+      <span class="pill" id="pill-perf"><i class="dot ok"></i> 性能 <b id="perf-pill">平均</b></span>
       <span class="pill"><i class="dot ok"></i> 会话 <b id="session-pill">0</b></span>
       <span class="pill"><i class="dot"></i> 端口 <b id="port-pill">8790</b></span>
-      <button class="link" id="open-godot">打开 Godot 设置说明</button>
+      <button class="link" id="open-godot">编辑器连接说明</button>
     </div>
   </header>
 
@@ -31,7 +32,7 @@
       <div class="card">
         <div class="card-head">
           <h2>新建任务</h2>
-          <span class="muted">会轮流派发给已启动的会话</span>
+          <span class="muted">会轮流派发给已勾选“轮换”的会话（≥2 个才启用轮换）</span>
         </div>
         <textarea id="prompt" rows="5" placeholder="例如：给我的 Godot 项目做一个主菜单：开始游戏 / 设置 / 退出，带淡入动画，脚本放在 res://scripts/ 下。"></textarea>
         <div class="row">
@@ -40,7 +41,7 @@
           </select>
           <button class="primary" id="add-task">加入队列</button>
         </div>
-        <p class="hint">任务运行时会自动轮换浏览器：每个回合（一次 AI 调用 + 一条命令）可能落在不同的会话上，记忆由时间线自动接续。</p>
+        <p class="hint">任务运行时会在你勾选的浏览器之间轮换：每个回合（一次 AI 调用 + 一条命令）可能落在不同的会话上，记忆由时间线自动接续。只勾一个就是单浏览器模式；勾两个以上才会真正轮换。</p>
       </div>
 
       <div class="card">
@@ -49,6 +50,28 @@
           <button class="danger small" id="stop-all">全部停止</button>
         </div>
         <div id="tasks" class="list empty-note">暂无任务</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>性能模式</h2>
+          <span class="muted" id="perf-mode-note">…</span>
+        </div>
+        <div class="row">
+          <select id="perf-mode">
+            <option value="eco">极致性能 · 内存 / CPU / 磁盘最小</option>
+            <option value="balanced">平均（默认）</option>
+            <option value="turbo">最快速度 · 轮询最勤</option>
+          </select>
+        </div>
+        <p class="hint" id="perf-hint">切换模式会覆盖日志条数、记忆条数、结果长度和轮询间隔；之后仍可单独微调。</p>
+        <div class="row tight">
+          <label class="field">记忆保留天数 <input type="number" id="memory-keep" min="0" max="3650" step="1" /></label>
+          <span class="hint inline">0 = 永久保留</span>
+        </div>
+        <div class="row">
+          <button class="ghost" id="apply-perf">应用性能模式</button>
+        </div>
       </div>
 
       <div class="card">
@@ -82,13 +105,17 @@
         <div class="card-head">
           <h2>浏览器会话</h2>
           <span class="muted" id="sessions-note">在 AI 页面点“启动”后会出现在这里</span>
+          <span class="row tight" style="margin-left:auto">
+            <button class="linkish" id="sessions-all">全选轮换</button>
+            <button class="linkish" id="sessions-none">全不选</button>
+          </span>
         </div>
         <div id="sessions" class="list empty-note">暂无会话</div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <h2>Godot 编辑器</h2>
+          <h2>编辑器</h2>
           <span class="badge" id="editor-badge">未连接</span>
         </div>
         <div id="editor" class="kv empty-note">等待插件连接…</div>
@@ -124,6 +151,7 @@
   <div id="toast" class="toast"></div>
   <footer>
     <span>本地运行 · 数据不上传 · GPL-3.0</span>
+    <span id="rss"></span>
     <span id="uptime"></span>
   </footer>
   <script src="app.js"></script>

@@ -1,15 +1,25 @@
-# NonZeroScript —— 免费的 Godot 4.7.2 AI 智能体
+# NonZeroScript —— 免费的游戏编辑器 AI 智能体
 
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
-![Godot](https://img.shields.io/badge/Godot-4.7.2-478cbf)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(64%20%26%2032--bit)-lightgrey)
+![Editor](https://img.shields.io/badge/editors-多编辑器%20%C2%B7%20Godot%204.7.2-478cbf)
+![Languages](https://img.shields.io/badge/scripts-GDScript%20%2B%20C%23-2f9e44)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.1.0-6366f1)
+![Version](https://img.shields.io/badge/version-0.2.0-6366f1)
 
 ![NonZeroScript banner](assets/banner.svg)
 
-**NonZeroScript** 是 **[ZeroScript](https://github.com/sebattfg/ZeroScript-Free) 的官方衍生版**，把原本面向 Roblox Studio 的 ZeroScript 重做成了 **Godot 4.7.2** 版本。它让 ChatGPT、DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena 变成真正的 Godot 编辑器智能体：读写 **GDScript 或 C#**、创建场景和节点、修改项目设置、运行游戏、读取报错——全部在普通的 AI 聊天页面里完成，**不需要 API Key，也不需要命令行**。
+**NonZeroScript** 是 **[ZeroScript](https://github.com/sebattfg/ZeroScript-Free) 的官方衍生版**，把原本面向 Roblox Studio 的 ZeroScript 重做成了**面向游戏编辑器**的版本。它让 ChatGPT、DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena 变成真正的编辑器智能体：读写 **GDScript 或 C#**、创建场景和节点、修改项目设置、运行游戏、读取报错——全部在普通的 AI 聊天页面里完成，**不需要 API Key，也不需要命令行**。
 
-> **官方衍生版说明**：NonZeroScript 并不是第三方魔改，而是 ZeroScript 官方针对 Godot 的衍生版本，与上游项目同步维护。本版本**不包含** Roblox Studio 集成、Roblox MCP 中转和 Roblox 专用说明；其余部分（浏览器插件的智能体循环、命令协议、永久免费承诺）都来自 ZeroScript，并继续使用 GPL-3.0 许可。
+## 中文简介
+
+- **它是什么：** 一个「浏览器插件 + 本地中转（带可视化操控台）+ 编辑器插件」的组合。你在 AI 聊天页点一下“启动”，之后在操控台里用中文写需求，AI 就会真的去改你的项目文件、场景和设置。
+- **支持多个编辑器：** 浏览器插件和中转只认一套很小的编辑器无关协议，每个编辑器对应 `editor/` 下的一个插件文件夹。**现在已经内置 Godot 4.7.2（GDScript + C#）**；要支持 Unity、Unreal 或别的引擎，只需按 [`editor/PROTOCOL.md`](editor/PROTOCOL.md) 写一个适配器，不用改 agent。
+- **不只是“三个浏览器”：** 打开多少个浏览器/标签页都行，每个会话都有“轮换”勾选；**勾一个就是单浏览器模式，勾两个以上才真正轮换**。
+- **三档性能模式：** 极致性能（内存目标 **30 MB 以内**，实测 15–25 MB）、平均、最快速度，操控台里一键切换，立即生效。
+- **平台：** 仅 Windows 10/11 与 macOS，**64 位和 32 位都支持，不提供 Linux 版本**。
+- **免费开源：** GPL-3.0，无账号、无订阅、无 API Key，数据全部留在本机。
+
+> **官方衍生版说明**：NonZeroScript 并不是第三方魔改，而是 ZeroScript 官方针对游戏编辑器（当前为 Godot 4.7.2）的衍生版本，与上游项目同步维护。本版本**不包含** Roblox Studio 集成、Roblox MCP 中转和 Roblox 专用说明；其余部分（浏览器插件的智能体循环、命令协议、永久免费承诺）都来自 ZeroScript，并继续使用 GPL-3.0 许可。
 
 > 🌐 上游 ZeroScript：**[zerodev.tools/zeroscript](https://zerodev.tools/zeroscript)** · [github.com/sebattfg/ZeroScript-Free](https://github.com/sebattfg/ZeroScript-Free)
 
@@ -17,10 +27,10 @@
 
 | | ZeroScript（Roblox） | **NonZeroScript（Godot）** |
 |---|---|---|
-| 目标 | Roblox Studio（通过 MCP） | **Godot 4.7.2（通过编辑器插件）** |
+| 目标 | Roblox Studio（通过 MCP） | **任意游戏编辑器（通过插件）**，已内置 Godot 4.7.2 |
 | 操控方式 | 聊天栏 + 命令行 Bridge | **可视化操控台 + 本地中转**，不用命令行 |
 | 输入节奏 | 内部固定等待 | **每次模拟输入前，在最小/最大秒数之间随机等待** |
-| 浏览器 | 单标签页 | **多浏览器 AI 轮流调用**，共享时间线记忆 |
+| 浏览器 | 单标签页 | **自己选择哪些浏览器参与**；两个以上自动轮换，共享时间线记忆 |
 | 记忆 | Roblox 项目内记忆 | **按任务、按浏览器会话保存的时间线文件**，用于轮换时接续上下文 |
 | AI 支持 | 8 家 | **8 家：ChatGPT、DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena**（ChatGPT 支持已更新） |
 
@@ -28,10 +38,10 @@
 
 ```
  ┌─────────────────────────────┐        ┌──────────────────────────────┐
- │  浏览器（Chrome / Edge）      │        │  Godot 4.7.2 编辑器           │
- │  ChatGPT · DeepSeek · Gemini │        │  addons/nonzeroscript         │
- │  Kimi · GLM · Qwen · Meta    │        │  （文件 + 场景命令）           │
- │  Arena                       │        │                              │
+ │  浏览器（Chrome / Edge）      │        │  你的编辑器                    │
+ │  ChatGPT · DeepSeek · Gemini │        │  editor/<适配器>/             │
+ │  Kimi · GLM · Qwen · Meta    │        │  内置 Godot 4.7.2，           │
+ │  Arena                       │        │  其他引擎可实现同一套协议      │
  │        ▲   浏览器插件         │        │        ▲   编辑器插件          │
  └────────┼─────────────────────┘        └────────┼─────────────────────┘
           │  本机 HTTP                            │  本机 HTTP 轮询
@@ -44,7 +54,7 @@
 
 1. **浏览器插件**运行在 AI 聊天页里：模拟输入任务 → 等待 AI 回答 → 解析出**一条**命令 → 上报给中转。
 2. **中转（controller）**是一个很小的本地程序（只用 Python 标准库）：提供**可视化操控台**，决定下一回合交给哪个浏览器，把命令转发给 Godot，并写入时间线。
-3. **Godot 编辑器插件**真正操作你的项目：文件、场景、节点、项目设置、试运行和日志。
+3. **编辑器插件**真正操作你的项目：文件、场景、节点、项目设置、试运行和日志。当前内置的是 Godot 4.7.2 适配器，协议对所有编辑器一致。
 
 全程不经过任何云端服务；网络流量只发生在浏览器、中转和 Godot 之间的 `127.0.0.1`。
 
@@ -52,21 +62,25 @@
 
 - **用可视化操控台代替命令行。** 双击启动脚本后自动打开浏览器里的操控台：添加任务、查看会话、浏览时间线、调整延迟和轮换设置。
 - **随机输入等待时间。** 可设置最小和最大秒数（例如 2–6 秒）。**每一次**模拟输入（启动提示、任务、命令结果）之前都会在该区间随机抽取一个时间等待，并在页面状态栏显示倒计时。
-- **多浏览器 AI 轮换。** 打开 3 个浏览器（或 3 个标签页），分别在页面点“启动”，之后每次 AI 调用都会轮流使用下一个就绪会话。也可以在新建任务时指定只用某一家 AI。
+- **由你选择参与轮换的浏览器。** 打开任意数量的浏览器/标签页，分别在页面点“启动”，然后在操控台只勾选要参与的那几个：**勾 1 个 = 单浏览器模式，勾 2 个及以上 = 自动轮换**（round-robin），操控台会实时显示当前是哪种模式。新建任务时也可以指定只用某一家 AI。
+- **三档性能模式。** **极致性能（内存目标 30 MB 以内）**、**平均**、**最快速度**。切换后日志条数、记忆条数、结果长度和轮询间隔会立即调整，不需要重启。
 - **时间线记忆。** 每个浏览器里的 AI 记忆是独立的，轮换本会丢上下文。中转会把每次提示、回答、工具结果写入 `controller/data/memory/`，并在下一回合前给接手的浏览器附上一段**记忆摘要**。
-- **真正可用的 Godot 工具集。** 29 个命令（GDScript 与 C#）：读写/搜索/编辑文件，查看和修改当前场景、增删节点、实例化场景、修改项目设置、运行/停止游戏、读取编辑器日志、保存截图给人类看。
+- **真正可用的编辑器工具集。** Godot 适配器提供 29 个命令（GDScript 与 C#）：读写/搜索/编辑文件，查看和修改当前场景、增删节点、实例化场景、修改项目设置、运行/停止游戏、读取编辑器日志、保存截图给人类看。
 - **ChatGPT 支持已更新**，同时支持 DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena。
 - **完全免费开源**：GPL-3.0，无账号、无订阅、无 API Key。
 
 ## 安装（共三部分）
 
+> **平台说明：** 仅支持 **Windows 10/11** 和 **macOS**，**64 位与 32 位都可以**；**不提供 Linux 版本**，也没有 Linux 启动脚本或安装包。
+>
+> 仓库里的 [`dist/`](dist) 已经放了打好的压缩包（`NonZeroScript-<版本>.zip` 是完整包），不构建也能直接用。
+
 ### 1. 中转 + 可视化操控台
 
 - 安装 **Python 3.9 或更新版本**（[python.org/downloads](https://www.python.org/downloads/)），不需要 `pip install`，只用标准库。
 - 打开 `controller` 文件夹，双击：
-  - **Windows：** `start.bat`
-  - **macOS：** `start.command`（首次运行请右键 → 打开，或在“系统设置 → 隐私与安全性”里允许）
-  - **Linux：** `start.sh`
+  - **Windows 10/11（64 位 / 32 位）：** `start.bat`
+  - **macOS（64 位 / 32 位）：** `start.command`（首次运行请右键 → 打开，或在“系统设置 → 隐私与安全性”里允许）
 - 会打开一个控制台窗口，并自动在浏览器打开 **http://127.0.0.1:8790/**（可视化操控台）。
 
 > 使用期间请保持这个窗口开启。关闭窗口就会停止中转。修改端口后需要重启。
@@ -129,16 +143,18 @@
 - **小步快跑。** 一次做一个功能；AI 会先检查再修改，每条命令在操控台里都能看到。
 - **保持操控台开启。** 它也是唯一能添加任务、查看哪个浏览器在工作的地方。
 - **建议 2–6 秒延迟。** 太短虽然能用，但更像机器；类人的停顿更不容易触发 AI 站点的自动输入检测。
-- **v0.1.0 以文本工具为主。** 插件可以为你保存一张编辑器截图（`capture_editor_viewport`），但暂不会把截图发给 AI。
+- **目前以文本工具为主。** 插件可以为你保存一张编辑器截图（`capture_editor_viewport`），但暂不会把截图发给 AI。
 
 ## 多浏览器轮换与记忆
 
-可以混用浏览器、标签页和 AI：
+可以混用浏览器、标签页和 AI，**参与哪些由你决定**：
 
 1. Chrome 打开 DeepSeek，点 **启动**。
 2. Edge 打开同一个 DeepSeek（或 ChatGPT、Gemini…），点 **启动**。
-3. 操控台的“浏览器会话”里会出现两个会话，默认都勾选“轮换”。
-4. 添加任务。第 1 回合给第一个就绪会话，第 2 回合给下一个，依次轮流。
+3. 操控台的“浏览器会话”里会出现两个会话。每个会话都有“轮换”勾选，卡片右上角还有 **全选轮换 / 全不选**。
+4. 添加任务：**只勾 1 个**时任务全部在这一个会话上跑；**勾 2 个及以上**时自动轮流（第 1 回合第一个、第 2 回合下一个……）。会话区标题会显示 `轮换中 · N 个浏览器` 或 `单浏览器模式`。
+
+数量不固定为 3：想开几个就开几个，取消勾选立刻生效，不需要关标签页。
 
 由于每个标签页的聊天记忆独立，中转会在第 2 回合起附上记忆摘要：
 
@@ -162,14 +178,29 @@ controller/data/memory/
 
 不想让某个会话参与轮换：在操控台取消它的“轮换”勾选，或在页面点“停止”彻底脱离。
 
+## 性能模式
+
+操控台里有一个 **性能模式** 下拉框，切换后立即生效（不需要重启），所有数值都会写进 `controller/data/settings.json`，之后仍可单独微调。
+
+| 模式 | 内存 / CPU / 磁盘 | 轮询间隔（浏览器 / 编辑器） | 日志条数 | 单条结果上限 | 适合场景 |
+|---|---|---|---|---|---|
+| **极致性能** | 最小；操控台底部显示真实内存，通常在 **15–25 MB** | 1.5 秒 / 1.0 秒 | 120 行 | 6 000 字符 | 笔记本、长时间无人值守、多个标签页 |
+| **平均**（默认） | 中等 | 1.2 秒 / 0.4 秒 | 800 行 | 12 000 字符 | 日常使用 |
+| **最快速度** | 最大 | 0.5 秒 / 0.25 秒 | 2 000 行 | 20 000 字符 | 单项目、追求响应速度 |
+
+- 模式还决定记忆摘要条数、内存里保留多少个已完成任务、以及操控台重绘频率。
+- **记忆保留天数**：启动时和保存设置时清理 `controller/data/memory/` 里过期的旧时间线；填 `0` 表示永久保留。
+- 编辑器插件也会收到中转下发的轮询间隔（`settings.poll_ms`），所以极致性能模式会同时降低 Godot 插件的轮询频率。
+- 操控台底部显示的是**真实**常驻内存（`/api/status → perf.rss_mb`），不是估算值。
+
 ## 输入节奏设置
 
-操控台 → **输入节奏**：
+操控台 → **输入节奏**（这些数值由性能模式设置，之后可以单独微调）：
 
 - **最小秒数 / 最大秒数** —— 随机等待区间。每次模拟输入都会重新抽取，并在页面显示倒计时。
 - **最大回合** —— 单个任务的回合上限。
 - **记忆条数** —— 轮换时附带的最近时间线事件数。
-- **多浏览器轮换** —— 是否轮流派发。
+- **多浏览器轮换** —— 是否轮流派发（至少勾选两个会话才有意义）。
 - **追加给 AI 的自定义指令** —— 追加在系统提示末尾（代码风格、命名规范、引擎版本注意事项等）。
 
 ## 支持的 AI
@@ -182,7 +213,7 @@ controller/data/memory/
 | **Kimi** | kimi.ai | 有时会使用自己的原生工具而不用命令 |
 | **GLM** | chat.z.ai | 建议 GLM-5.2；高峰期 z.ai 可能繁忙 |
 | **Qwen** | chat.qwen.ai | 建议选择支持工具调用的模型 |
-| **Meta AI** | meta.ai | 页面支持图片，但 v0.1.0 只发文本命令 |
+| **Meta AI** | meta.ai | 页面支持图片，但 NonZeroScript 只发文本命令 |
 | **Arena** | arena.ai | 模式必须保持 **Direct**；Battle / Side-by-side / Agent 会被阻止 |
 
 八家共用同一套命令协议，可以自由轮换。操控台新建任务时也可以指定只用某一家。
@@ -259,31 +290,48 @@ public partial class Player : CharacterBody2D
 
 插件会拒绝 `res://`/`user://` 之外的路径，保护 `.git`、`.godot`、插件本身和 `project.godot`；删除文件夹必须显式 `recursive=true`。也可以在 Godot 面板里直接关闭“允许 AI 写入”。
 
+## 支持其他编辑器
+
+浏览器插件和中转只认 [`editor/PROTOCOL.md`](editor/PROTOCOL.md) 里的协议：
+
+1. 新建 `editor/<引擎名>/`，实现同样的两个接口（`/api/editor/poll`、`/api/editor/result`）。
+2. 加上 `build.json`（`{"artifact": "editor-unity", "target": "..."}`），构建脚本会自动按文件夹打包。
+3. 在 `controller/tools.json` 里描述该引擎的命令，系统提示会自动带上新工具，浏览器插件不需要改。
+
+Godot 适配器就是参考实现：29 个命令、GDScript + C#、可撤销的场景编辑、路径保护、写入开关。
+
 ## 环境要求
 
 - **Godot 4.7.2**（插件按 4.7.2 编写；相邻 4.x 版本或许可用，但未测试）
 - C# 项目另需 **Godot 4.7.2 的 .NET 版**和 .NET SDK；纯 GDScript 项目不需要
 - **Chrome 或 Edge**（Chromium 111+，Edge 使用同一个插件包）
-- **Python 3.9+**（中转，仅标准库）
-- Windows / macOS / Linux
+- **Python 3.9+**（中转，仅标准库）；32 位系统请安装 32 位 Python
+- **Windows 10/11**（64 位 / 32 位）或 **macOS**（64 位 / 32 位）
+- **不支持 Linux**，也没有 Linux 安装包或启动脚本
 
 ## 从源码构建（手动，不会自动构建）
 
-本仓库**不包含**自动构建（没有 CI 工作流）。需要发布包时手动执行：
+[`dist/`](dist) 里已经提交了打好的压缩包，普通用户不需要这一步。修改源码后请手动重新构建——本仓库**故意不包含**自动构建（没有 CI 工作流），不会自动发布任何东西：
 
 ```bash
-python3 tools/build.py
+python3 tools/build.py --check   # 只检查版本号和提示词文档，不构建
+python3 tools/build.py --clean   # 先清空 dist/ 再完整重建
 ```
 
 输出到 `dist/`：
 
 ```
-dist/NonZeroScript-0.1.0.zip          # 以下全部打成一个包
-dist/controller.zip                   # controller/（操控台 + 中转 + 启动脚本）
+dist/NonZeroScript-0.2.0.zip          # 以下全部打成一个包
+dist/controller.zip                   # controller/（操控台 + 中转 + Windows/macOS 启动脚本）
 dist/extension.zip                    # extension/（Chrome/Edge 加载已解压）
 dist/editor-godot-4.7.2.zip           # addons/nonzeroscript/（放进 Godot 项目）
 dist/SHA256SUMS.txt
 ```
+
+`--check` 会核对 7 个位置的版本号（`version.txt`、`controller/version.py`、
+`extension/manifest.json`、`controller/tools.json`、`plugin.cfg`、`commands.gd`、
+`bridge.gd`）以及 `prompts/tool-catalogue.md` 是否与 `controller/tools.json` 同步；
+任何一处不一致就直接拒绝构建，避免打错版本号。
 
 构建脚本只用 Python 标准库。若已安装 PyInstaller，可加 `--exe` 生成单文件控制器。
 
@@ -293,6 +341,7 @@ dist/SHA256SUMS.txt
 python3 tools/smoke_test.py    # 启动控制器 + 假编辑器 + 两个假浏览器，
                                # 验证轮换、记忆摘要和命令执行
 node tools/test_parser.js      # 解析器用例（JSON、代码块、截断、别名）
+python3 tools/prompts.py --check   # 提示词文档仍与 tools.json、config.js 一致
 ```
 
 本仓库**故意不包含 GitHub Actions 自动构建**：不会自动编译或发布，需要发行包时手动执行上面的构建命令。
@@ -307,11 +356,30 @@ NonZeroScript/
   extension/               Chrome/Edge MV3 插件
     core/                  与站点无关的智能体循环、解析器、传输
     providers/             每个 AI 网站一个适配器
-  editor/
-    godot-4.7.2/            Godot 编辑器插件（安装为 addons/nonzeroscript）
-  tools/                   构建 + 冒烟测试
+  editor/                  每个编辑器一个目录（适配器）
+    PROTOCOL.md            与编辑器无关的桥接协议
+    godot-4.7.2/           Godot 编辑器插件（安装为 addons/nonzeroscript）
+  prompts/                 给 AI 的指令（系统提示词、规则、命令目录）
+  dist/                    预编译发行包（已提交）
+  tools/                   构建（--check）、冒烟测试、提示词导出、clean_master.sh
   assets/                  横幅与图标
 ```
+
+## 分支说明：`master` 只放介绍和许可证
+
+产品代码在 `v0.1.0-dev` 分支上。`master` 只作为落地页：介绍 + 许可证，没有代码。
+`master` 的历史提交里仍然带着旧的 ZeroScript 代码，本仓库不会自己改写分支，
+所以清理是一次**手动**操作：
+
+```bash
+tools/clean_master.sh             # 只显示计划，不改动任何东西
+tools/clean_master.sh --no-push   # 在本机构造提交，不推送
+tools/clean_master.sh --yes       # 强制推送 master = README + README.zh-CN + LICENSE + NOTICE
+```
+
+脚本会从**当前分支**取这 4 个文件（不是从旧 master，旧 master 里还是上一个产品的说明），
+用 git plumbing 构造一个无父提交，不会动你的工作区、索引和分支，并在强推前打印旧的
+`master` SHA。如果 GitHub 拒绝（默认分支受保护），脚本会提示需要改的两个设置项。
 
 ## 常见问题
 

@@ -10,7 +10,10 @@ const ZS = (() => {
   "use strict";
 
   const APP_NAME = "NonZeroScript";
-  const EDITION = "Godot 4.7.2 edition";
+  const EDITION = "multi-editor edition";
+  // The editor adapter that is connected right now (the only one shipped today
+  // is Godot 4.7.2, but the prompt never assumes it).
+  const DEFAULT_ADAPTER = "godot-4.7.2";
   const DEFAULT_CONTROLLER = "http://127.0.0.1:8790";
   const SYS_MARKER = "⟦NZS-SYS⟧";
   const RESEND_MARKER = "⟦NZS-RE⟧";
@@ -72,9 +75,9 @@ const ZS = (() => {
       `ERROR: unknown command "${name}". Valid commands are: ${valid.join(", ")}. ` +
       "Use an exact name and parameter keys from the system prompt.",
     editorOffline:
-      "ERROR: the Godot editor plugin is not connected to the controller, so the command could not run. " +
+      "ERROR: the editor plugin is not connected to the controller, so the command could not run. " +
       "This is an environment problem on the human's machine, NOT your mistake. Tell the user in one short " +
-      "sentence to open their Godot project and enable the NonZeroScript plugin. Then stop and wait.",
+      "sentence to open their project (for Godot 4.7.2: enable the NonZeroScript plugin) and then stop and wait.",
     controllerOffline:
       "ERROR: the local NonZeroScript controller is unreachable. Tell the user in one short sentence to start " +
       "the controller, then stop and wait.",
@@ -112,6 +115,8 @@ const ZS = (() => {
     const tools = compactTools(opts.tools);
     const ed = opts.editor || {};
     const env = [
+      `- Editor: ${ed.kind || "Godot 4.7.2"}`,
+      `- Adapter: ${ed.adapter || DEFAULT_ADAPTER}`,
       `- Engine: ${ed.engine || "Godot 4.7.2"}`,
       `- Project: ${ed.project || "(unknown - the editor plugin is not connected yet)"}`,
       `- Project path: ${ed.project_path || "(unknown)"}`,
@@ -126,11 +131,14 @@ const ZS = (() => {
 
     return (
       SYS_MARKER + "\n" +
-      `# NonZeroScript - Godot ${EDITION}\n\n` +
-      `You are NonZeroScript, an AI agent that builds and edits a **Godot 4.7.2** project through the ` +
-      `NonZeroScript editor plugin. This page (${siteName}) is only the brain: the plugin performs every ` +
-      `file and scene change for real on the human's machine. You are NOT a normal chatbot in this ` +
-      `conversation - act, do not describe.\n\n` +
+      `# NonZeroScript - ${EDITION}\n\n` +
+      `You are NonZeroScript, an AI agent that builds and edits projects through the **NonZeroScript editor ` +
+      `plugin**. The plugin is what talks to the editor on the human's machine, so the same prompt works for ` +
+      `any editor adapter (Godot, Unity, Unreal, ...). The connected editor is listed in the Environment; ` +
+      `today the shipped adapter is **Godot 4.7.2**, so the commands and script languages below are Godot's. ` +
+      `If the Environment names a different editor, trust the tool catalogue over these examples.\n\n` +
+      `This page (${siteName}) is only the brain: the plugin performs every file and scene change for real. ` +
+      `You are NOT a normal chatbot in this conversation - act, do not describe.\n\n` +
 
       `## The one rule\n` +
       `Every reply must be exactly ONE of these two things:\n` +
