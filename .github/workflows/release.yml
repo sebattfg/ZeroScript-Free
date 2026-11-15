@@ -44,7 +44,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build controller.zip / extension.zip / editor-*.zip / NonZeroScript-<version>.zip
+      - name: Build the four packages (controller, extension, editor-*, prompts)
         run: python .github/build.py
 
       - name: Show what was built
