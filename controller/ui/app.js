@@ -91,7 +91,7 @@
     $("uptime").textContent = `控制器已运行 ${Math.floor((st.uptime || 0) / 60)} 分 ${(st.uptime || 0) % 60} 秒`;
     const perf = st.perf || {};
     const perfPill = $("perf-pill");
-    if (perfPill) perfPill.textContent = perf.label || "均衡";
+    if (perfPill) perfPill.textContent = perf.label || "平均";
     const perfNote = $("perf-mode-note");
     if (perfNote) {
       perfNote.textContent = perf.rss_mb
@@ -471,7 +471,7 @@
     }
     state.settingsLoaded = false;
     fillSettings({ settings: r.settings });
-    toast(`已切换到${mode === "eco" ? "极致性能" : mode === "turbo" ? "最快速度" : "均衡"}模式`, "ok");
+    toast(`已切换到${mode === "eco" ? "极致性能" : mode === "turbo" ? "最快速度" : "平均"}模式`, "ok");
     refresh();
   }
 

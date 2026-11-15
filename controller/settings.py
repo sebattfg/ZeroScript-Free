@@ -33,7 +33,7 @@ PERF_PROFILES: dict[str, dict[str, Any]] = {
         "editor_poll_ms": 1000,
     },
     "balanced": {
-        "label": "均衡",
+        "label": "平均",
         "summary": "默认设置，速度和占用平衡",
         "log_limit": 800,
         "keep_tasks": 40,

@@ -56,7 +56,7 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 - **Visual console instead of a command line.** Start the controller by double-clicking a script; the console opens in your browser. Queue tasks, watch sessions, inspect the timeline, edit the delay and rotation settings.
 - **Random input delay.** Set a minimum and maximum number of seconds (e.g. 2–6 s). Before every simulated input — the startup prompt, a task, or a tool result — NonZeroScript waits a random time in that range. This is much gentler on AI sites than instant, regular automation.
 - **You pick the browsers.** Open as many browsers or tabs as you like, press **启动 / Start** in each, then tick **轮换** only for the ones that should take turns. One ticked session = single-browser mode; **two or more ticked sessions turn rotation on** (round-robin), and the console always shows which mode is active.
-- **Three performance modes.** **极致性能 / eco** keeps the relay tiny (target: **under 30 MB RAM**, small logs, slow UI refresh), **均衡 / balanced** is the default, and **最快速度 / turbo** polls hardest and keeps the longest results. One dropdown, no restart.
+- **Three performance modes.** **极致性能 / eco** keeps the relay tiny (target: **under 30 MB RAM**, small logs, slow UI refresh), **平均 / balanced** is the default, and **最快速度 / turbo** polls hardest and keeps the longest results. One dropdown, no restart.
 - **Timeline memory.** Each browser AI has its own private chat context, so rotation would normally lose the plot. The controller writes every prompt, reply and tool result to `controller/data/memory/` and prepends a compact **memory brief** to the next turn, whichever browser gets it.
 - **A real editor toolset** — 29 commands for the Godot adapter (GDScript **and** C#): read/search/write/edit files, inspect and edit the open scene, add/remove nodes, instance scenes, change project settings, run and stop the game, read the editor log and capture a screenshot for the human.
 - **ChatGPT support updated** for the current composer, alongside DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI and Arena.
@@ -198,7 +198,7 @@ The console has one dropdown (**性能模式**) with three profiles. Switching a
 | Mode | RAM / CPU / disk | Poll cadence (browser / editor) | Log ring | Result cap | Best for |
 |---|---|---|---|---|---|
 | **极致性能 / eco** | smallest; measured RSS is shown in the console footer and stays around **15–25 MB** | 1.5 s / 1.0 s | 120 lines | 6 000 chars | laptops, long unattended runs, many tabs |
-| **均衡 / balanced** (default) | moderate | 1.2 s / 0.4 s | 800 lines | 12 000 chars | everyday use |
+| **平均 / balanced** (default) | moderate | 1.2 s / 0.4 s | 800 lines | 12 000 chars | everyday use |
 | **最快速度 / turbo** | largest | 0.5 s / 0.25 s | 2 000 lines | 20 000 chars | a single project, speed over footprint |
 
 - The profile also sets how many timeline entries go into the memory brief, how many finished tasks stay in memory, and how often the console redraws.
