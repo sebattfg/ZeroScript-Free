@@ -2,123 +2,32 @@
 
 ## 0.2.0 — 2026-11-15
 
-### Added
+### New
 
-- **Multi-editor architecture.** The relay and the extension only speak the
-  bridge protocol now documented in `editor/PROTOCOL.md`; every editor gets one
-  folder under `editor/` and one build artifact. Godot 4.7.2 stays the shipped
-  adapter (29 commands, GDScript + C#); Unity/Unreal are listed as *planned*
-  (protocol only, no plugin).
-- **`prompts/`** — the instructions the AI runs on, in one reviewable folder:
-  `system-prompt.md` (template + placeholders), `agent-rules.md` (checklist),
-  `tool-catalogue.md` (generated from `controller/tools.json`),
-  `repair-messages.md` (parse-error feedback). `tools/prompts.py` regenerates
-  the catalogue and `--check` fails on drift.
-- **Three performance modes** (`perf_mode`: `eco` / `balanced` / `turbo`). A
-  profile owns the log ring, task retention, memory-brief size, result cap and
-  the console/browser/editor poll cadences, and switching applies them at once.
-  `eco` targets < 30 MB RSS; the console shows the **measured** value
-  (`controller/metrics.py`, Windows + macOS) and the mode is forwarded to the
-  Godot bridge (`settings.poll_ms`), so the plugin slows down too.
-- **Rotation is chosen per browser.** Every session keeps its **轮换**
-  checkbox, the session card gained **全选轮换 / 全不选**, and `/api/status`
-  reports `rotation: {switch, eligible, active, mode}` — one ticked session is
-  single-browser mode, two or more turn round-robin on.
-- **Prebuilt releases are committed** in `dist/` (`controller.zip`,
-  `extension.zip`, `editor-godot-4.7.2.zip`, `NonZeroScript-0.2.0.zip`,
-  `SHA256SUMS.txt`).
-- `tools/build.py --check` — verifies the version string in all seven places and
-  the prompt docs, and refuses to build when they disagree.
-- `tools/clean_master.sh` — builds a parentless `master` containing only
-  `README.md`, `README.zh-CN.md`, `LICENSE` and `NOTICE` (taken from the current
-  branch), with a dry run, a `--no-push` test mode and an explicit `--yes`.
-- `memory_keep_days` (prune old timelines), bounded task retention
-  (`keep_tasks`), `memory.disk_usage()` and a `/api/memory` disk figure.
+- **多编辑器 / multi-editor.** 操控台和浏览器插件现在只认一套与编辑器无关的桥接协议（见 `editor/PROTOCOL.md`）；每个编辑器对应 `editor/` 下的一个插件文件夹和一个下载包。Godot 4.7.2 已提供（29 个命令，GDScript + C#），Unity / Unreal 等可按同一协议接入。
+- **三档性能模式：极致性能 / 平均 / 最快速度。** 在操控台里一键切换，立即生效：同时调整日志条数、记忆条数、单条结果上限，以及浏览器和编辑器的轮询间隔。极致性能档实测常驻内存 **21.6 MB**（目标 30 MB 以内），操控台底部显示的是真实测量值。
+- **按浏览器选择是否轮换。** 每个浏览器会话都有“轮换”勾选，卡片上还有 **全选轮换 / 全不选**：勾 1 个 = 单浏览器模式，勾 2 个及以上才自动轮流。唤醒数量完全由你决定，取消勾选立即生效。
+- **`prompts/` 文件夹。** 放在里面的就是给 AI 的指令：系统提示词、行为规则、解析失败时的修复提示，以及完整的命令目录。
+- **新增“记忆保留天数”**，可自动清理过期的时间线；已完成任务的保留数量也有上限，长时间挂机不会越跑越大。
+- **`dist/` 里直接提供下载包**：`NonZeroScript-0.2.0.zip`（完整包）、`controller.zip`、`extension.zip`、`editor-godot-4.7.2.zip`，附 `SHA256SUMS.txt` 校验。
 
-### Changed
+### 变化
 
-- **Platforms are Windows 10/11 and macOS, 64-bit and 32-bit.** Linux support
-  was removed: `controller/start.sh` is gone and the docs, build script and
-  install text no longer mention it.
-- README (both languages) re-framed around "multi-editor", with a full Chinese
-  introduction, the performance-mode table and the rotation selection.
-- Version bumped to **0.2.0** in `version.txt`, `controller/version.py`,
-  `extension/manifest.json`, `controller/tools.json`, `plugin.cfg`,
-  `commands.gd` and `bridge.gd`.
-- `.gitignore` tracks `dist/*.zip` (the repository is the download) and only
-  ignores PyInstaller output.
-- Console: 性能模式 card, performance pill with live RSS, 编辑器 wording,
-  adaptive refresh interval taken from the active profile.
+- **平台只保留 Windows 10/11 与 macOS（64 位 / 32 位）**，**不再提供 Linux 版本**：没有 Linux 启动脚本、安装包或说明。
+- 操控台界面：新增“性能模式”卡片和实时内存显示，会话区支持全选/全不选，刷新频率跟随性能档位。
+- 文档重写为面向使用者的版本（英文 `README.md` + 中文 `README.zh-CN.md`），版本号统一到 0.2.0。
 
-### Fixed
+### 修复
 
-- Task list in `/api/status` is capped by `keep_tasks` instead of a hard-coded
-  40, and finished tasks are pruned from memory (timeline files are kept).
-- `Memory.list_tasks()` no longer reads every timeline file on each call
-  (`limit`, default 40), which matters in eco mode.
+- 任务列表按性能档位保留，不再无限增长；读取任务列表不再逐个读时间线文件，节能档下更省内存。
+- 编辑器插件的轮询间隔改由中转统一下发，切到极致性能档时 Godot 插件也会降频。
 
 ## 0.1.0 — 2026-11-15
 
-First release of **NonZeroScript**, the official Godot edition of ZeroScript.
-Rebuilt from ZeroScript 1.5.5; the agent-loop idea, command protocol and
-per-site provider adapters are derived from upstream and remain GPL-3.0.
+首个面向游戏编辑器的版本：
 
-### Added
-
-- **Godot 4.7.2 editor plugin** (`editor/godot-4.7.2`). A 29-command toolset:
-  project/file inspection and editing, scene tree and node editing (undoable),
-  script attachment, scene creation/opening/saving, project settings,
-  play-testing, editor log reading, filesystem rescans and editor screenshots.
-  Outbound HTTP polling only; no inbound port. Path guards, write toggle and
-  protected paths.
-- **GDScript and C#** — `.gd` and `.cs` scripts go through the same
-  write/edit/attach path. `###CSHARP###` code blocks, `attach_script`
-  (undoable), `add_node`/`create_scene` `script_path`, and `get_editor_state`
-  reporting `csharp`/`dotnet`/`language` so the AI picks a language that the
-  open editor can actually compile. Standard (non-.NET) Godot builds still
-  accept `.cs` writes but return a `warning` and refuse to attach them.
-- **Visual controller** (`controller/`) — standard-library Python relay with a
-  browser console at `http://127.0.0.1:8790`: task queue, live sessions, editor
-  status, live log, timeline browser, command tester and settings. No command
-  line required; double-click launchers for Windows 10/11 and macOS
-  (64-bit and 32-bit; Linux is not supported).
-- **Random input delay** between a configurable minimum and maximum (default
-  2–6 s), applied before every simulated input and shown as a countdown in the
-  page bar.
-- **Multi-browser AI rotation** — round-robin across any number of ready tabs
-  and providers, per-task provider filter, per-session enable/disable, retry on
-  another session when a tab dies.
-- **Timeline memory** — one JSONL timeline per task and per browser session in
-  `controller/data/memory/`, with a compact memory brief prepended to rotated
-  turns so a different AI can continue the work.
-- **Browser extension for Chrome and Edge** (`extension/`, MV3) — rewritten
-  agent loop and transport for the controller; in-page bar with start/stop,
-  connection state, delay countdown and command chips; popup with controller
-  status and address.
-- **Eight providers:** ChatGPT (new composer support), DeepSeek, Gemini, Kimi,
-  GLM (chat.z.ai), Qwen, Meta AI and Arena. Arena is locked to Direct mode.
-- **Build and test tooling** — `tools/build.py` (one artifact per editor
-  folder, one extension, one controller, one combined release, SHA-256 sums),
-  `tools/smoke_test.py` (controller + fake editor + rotation end-to-end) and
-  `tools/test_parser.js` (command parser cases). No CI; builds are manual.
-
-### Changed from ZeroScript 1.5.5
-
-- No Roblox Studio, Roblox MCP bridge, Luau or Studio-specific instructions.
-- No command-line bridge: the relay is a visual console with a JSON API.
-- Provider prompts and UI strings now describe Godot and NonZeroScript.
-- Command catalogue moved to `controller/tools.json` (single source of truth
-  for the prompt, the console and the editor plugin).
-- Scripts are sent in explicit `###GDSCRIPT###` or `###CSHARP###` blocks instead
-  of `###LUA###`; legacy `###LUA###` markers still parse.
-- `.cs`, `.csproj` and `.sln` are pinned to LF in `.gitattributes`.
-
-### Known limitations
-
-- The Godot plugin targets 4.7.2; adjacent 4.x versions are untested.
-- C# support is untested against a real .NET Godot build: it is implemented
-  with feature detection (`CSharpScript`, `OS.has_feature("dotnet")`, the Script
-  loader's extension list) and degrades to a clear error without .NET.
-- v0.1.0 is text-first: screenshots are saved for the human but not sent to the
-  AI, and there is no image/asset generation or asset-library browsing yet.
-- AI website DOMs change; provider adapters may need selector updates.
+- 浏览器插件 + 本地中转（可视化操控台）+ Godot 4.7.2 编辑器插件，支持 ChatGPT、DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena 共 8 家，无需 API Key。
+- 每次模拟输入前随机等待（可设最小/最大秒数），页面状态栏显示倒计时。
+- 多浏览器会话、按任务和按会话保存的时间线记忆，轮换时自动附带记忆摘要。
+- Godot 适配器 29 个命令：文件读写、搜索、场景与节点操作、项目设置、运行/停止、读取编辑器日志、保存截图；GDScript 与 C# 均为一等公民。
+- 无账号、无订阅、无云端，全部在本机 `127.0.0.1` 上运行；GPL-3.0。

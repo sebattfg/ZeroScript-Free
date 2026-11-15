@@ -69,11 +69,11 @@
 - **ChatGPT 支持已更新**，同时支持 DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena。
 - **完全免费开源**：GPL-3.0，无账号、无订阅、无 API Key。
 
-## 安装（共三部分）
+## 下载与安装（共三部分）
 
-> **平台说明：** 仅支持 **Windows 10/11** 和 **macOS**，**64 位与 32 位都可以**；**不提供 Linux 版本**，也没有 Linux 启动脚本或安装包。
+> 下载 **[`dist/NonZeroScript-0.2.0.zip`](dist)**：一个压缩包里有操控台、浏览器插件和 Godot 插件，解压后按下面三步装好即可。
 >
-> 仓库里的 [`dist/`](dist) 已经放了打好的压缩包（`NonZeroScript-<版本>.zip` 是完整包），不构建也能直接用。
+> **平台说明：** 仅支持 **Windows 10/11** 和 **macOS**，**64 位与 32 位都可以**；**不提供 Linux 版本**，也没有 Linux 启动脚本或安装包。
 
 ### 1. 中转 + 可视化操控台
 
@@ -92,7 +92,7 @@
 3. 点击 **加载已解压的扩展程序**，选择 `extension` 文件夹。
 4. 建议把 NonZeroScript 固定到工具栏。
 
-插件不需要编译，`extension` 文件夹本身就是插件。
+解压后的 `extension` 文件夹就是插件本体，直接加载即可。
 
 ### 3. Godot 4.7.2 编辑器插件
 
@@ -290,15 +290,9 @@ public partial class Player : CharacterBody2D
 
 插件会拒绝 `res://`/`user://` 之外的路径，保护 `.git`、`.godot`、插件本身和 `project.godot`；删除文件夹必须显式 `recursive=true`。也可以在 Godot 面板里直接关闭“允许 AI 写入”。
 
-## 支持其他编辑器
+## 其他编辑器
 
-浏览器插件和中转只认 [`editor/PROTOCOL.md`](editor/PROTOCOL.md) 里的协议：
-
-1. 新建 `editor/<引擎名>/`，实现同样的两个接口（`/api/editor/poll`、`/api/editor/result`）。
-2. 加上 `build.json`（`{"artifact": "editor-unity", "target": "..."}`），构建脚本会自动按文件夹打包。
-3. 在 `controller/tools.json` 里描述该引擎的命令，系统提示会自动带上新工具，浏览器插件不需要改。
-
-Godot 适配器就是参考实现：29 个命令、GDScript + C#、可撤销的场景编辑、路径保护、写入开关。
+操控台和浏览器插件并不认识 Godot，它们只认 [`editor/PROTOCOL.md`](editor/PROTOCOL.md) 里的那一套协议；每个编辑器就是一个文件夹（`editor/<引擎名>/`）、一个插件、一套相同的命令。**目前提供的是 Godot 4.7.2**，它同时是参考实现：29 个命令、GDScript + C#、可撤销的场景编辑、路径保护、写入开关。Unity、Unreal 等引擎按同一套协议接入，浏览器插件和操控台不用改。
 
 ## 环境要求
 
@@ -309,78 +303,6 @@ Godot 适配器就是参考实现：29 个命令、GDScript + C#、可撤销的�
 - **Windows 10/11**（64 位 / 32 位）或 **macOS**（64 位 / 32 位）
 - **不支持 Linux**，也没有 Linux 安装包或启动脚本
 
-## 从源码构建（手动，不会自动构建）
-
-[`dist/`](dist) 里已经提交了打好的压缩包，普通用户不需要这一步。修改源码后请手动重新构建——本仓库**故意不包含**自动构建（没有 CI 工作流），不会自动发布任何东西：
-
-```bash
-python3 tools/build.py --check   # 只检查版本号和提示词文档，不构建
-python3 tools/build.py --clean   # 先清空 dist/ 再完整重建
-```
-
-输出到 `dist/`：
-
-```
-dist/NonZeroScript-0.2.0.zip          # 以下全部打成一个包
-dist/controller.zip                   # controller/（操控台 + 中转 + Windows/macOS 启动脚本）
-dist/extension.zip                    # extension/（Chrome/Edge 加载已解压）
-dist/editor-godot-4.7.2.zip           # addons/nonzeroscript/（放进 Godot 项目）
-dist/SHA256SUMS.txt
-```
-
-`--check` 会核对 7 个位置的版本号（`version.txt`、`controller/version.py`、
-`extension/manifest.json`、`controller/tools.json`、`plugin.cfg`、`commands.gd`、
-`bridge.gd`）以及 `prompts/tool-catalogue.md` 是否与 `controller/tools.json` 同步；
-任何一处不一致就直接拒绝构建，避免打错版本号。
-
-构建脚本只用 Python 标准库。若已安装 PyInstaller，可加 `--exe` 生成单文件控制器。
-
-两个测试都离线运行，无需安装依赖：
-
-```bash
-python3 tools/smoke_test.py    # 启动控制器 + 假编辑器 + 两个假浏览器，
-                               # 验证轮换、记忆摘要和命令执行
-node tools/test_parser.js      # 解析器用例（JSON、代码块、截断、别名）
-python3 tools/prompts.py --check   # 提示词文档仍与 tools.json、config.js 一致
-```
-
-本仓库**故意不包含 GitHub Actions 自动构建**：不会自动编译或发布，需要发行包时手动执行上面的构建命令。
-
-目录结构：
-
-```
-NonZeroScript/
-  controller/              可视化操控台、中转、轮换、记忆（Python 标准库）
-    ui/                    操控台页面（无需构建）
-    tools.json             命令目录（唯一事实来源）
-  extension/               Chrome/Edge MV3 插件
-    core/                  与站点无关的智能体循环、解析器、传输
-    providers/             每个 AI 网站一个适配器
-  editor/                  每个编辑器一个目录（适配器）
-    PROTOCOL.md            与编辑器无关的桥接协议
-    godot-4.7.2/           Godot 编辑器插件（安装为 addons/nonzeroscript）
-  prompts/                 给 AI 的指令（系统提示词、规则、命令目录）
-  dist/                    预编译发行包（已提交）
-  tools/                   构建（--check）、冒烟测试、提示词导出、clean_master.sh
-  assets/                  横幅与图标
-```
-
-## 分支说明：`master` 只放介绍和许可证
-
-产品代码在 `v0.1.0-dev` 分支上。`master` 只作为落地页：介绍 + 许可证，没有代码。
-`master` 的历史提交里仍然带着旧的 ZeroScript 代码，本仓库不会自己改写分支，
-所以清理是一次**手动**操作：
-
-```bash
-tools/clean_master.sh             # 只显示计划，不改动任何东西
-tools/clean_master.sh --no-push   # 在本机构造提交，不推送
-tools/clean_master.sh --yes       # 强制推送 master = README + README.zh-CN + LICENSE + NOTICE
-```
-
-脚本会从**当前分支**取这 4 个文件（不是从旧 master，旧 master 里还是上一个产品的说明），
-用 git plumbing 构造一个无父提交，不会动你的工作区、索引和分支，并在强推前打印旧的
-`master` SHA。如果 GitHub 拒绝（默认分支受保护），脚本会提示需要改的两个设置项。
-
 ## 常见问题
 
 **操控台显示“Godot 未连接”。**
@@ -390,10 +312,13 @@ tools/clean_master.sh --yes       # 强制推送 master = README + README.zh-CN 
 先启动控制器；如果端口不同，在插件弹窗和 Godot 面板里改成同一个地址。
 
 **8790 端口被占用。**
-关闭另一个控制器，或用 `python3 main.py --port 8791` 启动，并同步修改插件和 Godot 面板里的地址。`--host 0.0.0.0` 只建议在明确的远程演示中使用，否则会把文件编辑能力暴露到局域网。
+关闭另一个控制器，或换一个端口启动，并把同样的地址填进浏览器插件弹窗和 Godot 面板。
 
 **AI 只回文字，不出命令。**
 在聊天里提醒它“只发一条 NonZeroScript JSON 命令”，或新开会话。Arena 必须用 Direct 模式；Kimi、Gemini 偶尔会用自己的工具，DeepSeek 最稳定。
+
+**AI 网站改版后页面状态栏不见了。**
+AI 站点偶尔会改界面，插件会跟着更新；在更新之前，换一家 AI（DeepSeek、ChatGPT）可以继续用，操控台不受影响。
 
 **任务自己结束了。**
 协议是“每条回复最多一条命令”；没有命令的回复代表“任务完成或需要你决策”。操控台会显示最后的回复，继续添加任务即可。
@@ -408,7 +333,7 @@ NonZeroScript 以 GPL-3.0 开源，是 **ZeroScript 官方 Godot 衍生版**；�
 - 上游 ZeroScript：[github.com/sebattfg/ZeroScript-Free](https://github.com/sebattfg/ZeroScript-Free)
 - 本仓库：[github.com/Moonano-MG/NonZeroScript](https://github.com/Moonano-MG/NonZeroScript)
 
-遇到问题请附上操控台的“实时日志”和浏览器控制台输出，这两样对定位 AI 页面改版造成的 DOM 问题最有帮助。
+遇到问题请附上操控台的“实时日志”和页面状态栏当时显示的内容，这样最容易定位。
 
 ## License
 

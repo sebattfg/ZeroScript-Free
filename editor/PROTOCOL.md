@@ -92,18 +92,14 @@ Groups used by the console and the prompt: `read`, `edit`, `scene`, `run`,
 ```
 editor/
   PROTOCOL.md
-  godot-4.7.2/
-    build.json        {"artifact": "editor-godot-4.7.2", "target": "addons/nonzeroscript"}
-    ...
-  your-engine/
-    build.json        {"artifact": "editor-your-engine", "target": "..."}
-    ...
+  godot-4.7.2/      the reference adapter (installs as addons/nonzeroscript)
+  your-engine/      one folder per editor, one download each
 ```
 
 1. Implement the two endpoints and the status fields above.
-2. Write `build.json`; `python3 tools/build.py` produces one artifact per folder.
-3. Describe the commands in `controller/tools.json` (or a per-adapter copy).
-4. Add the engine to `editor/README.md` and to the table below.
+2. Describe the commands in `controller/tools.json` (or a per-adapter copy), so
+   the prompt the AI receives lists the new tools.
+3. Add the engine to the table below.
 
 ## Supported adapters
 
