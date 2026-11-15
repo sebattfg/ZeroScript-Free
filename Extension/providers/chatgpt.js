@@ -7,6 +7,15 @@
 // SUPPORTED_HOSTS + main.js AI_SITES).
 //
 // ChatGPT DOM notes (re-validated live, 2026-08 - chatgpt.com, logged in, fr-FR):
+//  - HARDENED 2026-11: OpenAI renames composer internals without notice (the
+//    2026-09 redesign moved the bar's grid template), and we cannot probe the
+//    live DOM from the dev environment (chatgpt.com refuses datacenter IPs).
+//    So every composer touchpoint now degrades through fallbacks instead of
+//    dying on a rename: getEditor() walks S.editorList (id → testid →
+//    contenteditable), submitBtn adds testid + form-submit fallbacks, and
+//    barMount() falls back to the wrapping <form> when the surface class is
+//    renamed. When a fallback fires, a console.warn names the selector - that
+//    line is what a user report should contain.
 //  - React app. One message = a <div data-message-author-role="user|assistant">
 //    carrying a stable data-message-id (a UUID). There is NO <article> wrapper
 //    anymore, so these elements alternate in DOM order and map 1:1 onto the
@@ -67,10 +76,30 @@ const ZSProvider = (() => {
     userRole: "user",
     assistantRole: "assistant",
     reply: ".markdown",
-    editor: "#prompt-textarea",
+    // The composer. #prompt-textarea is canonical (id survives testid churn),
+    // but every entry below it is a FALLBACK for a blind rename by a ChatGPT
+    // deploy - the 2026-09 redesign already renamed the grid template out from
+    // under the bar, and there is no live DOM to probe when that happens (the
+    // provider must keep working "off the map"). Ordered most→least specific:
+    // the last entry (any contenteditable div) is safe on chatgpt.com only
+    // because the composer is the page's sole contenteditable.
+    editorList: [
+      "#prompt-textarea",
+      "textarea[data-testid='prompt-textarea']",
+      "form div[contenteditable='true']",
+      "div[contenteditable='true'][id*='prompt']",
+      "form [contenteditable='true']",
+      "div[contenteditable='true']",
+    ],
     // The ONE submit control; its data-testid says whether it is currently a
     // send or a stop button (see isStopBtn). Id first - it survives testid churn.
-    submitBtn: "#composer-submit-button, button[data-testid='send-button'], button[data-testid='stop-button']",
+    submitBtn: [
+      "#composer-submit-button",
+      "button[data-testid='composer-submit-button']",
+      "button[data-testid='send-button']",
+      "button[data-testid='stop-button']",
+      "form button[type='submit']",
+    ].join(", "),
     // Kept for installSendHooks, which needs to recognise a click on the native
     // stop control wherever it lives.
     stopBtn: "button[data-testid='stop-button']",
@@ -221,7 +250,36 @@ const ZSProvider = (() => {
   const assistantItems = () => allItems().filter(isAssistantItem);
   const assistantCount = () => assistantItems().length;
   const userCount = () => allItems().filter(isUserItem).length;
-  const getEditor = () => document.querySelector(S.editor);
+  const getEditor = (() => {
+    // Walk the fallback list; remember the winning selector and skip the whole
+    // walk while that node is still connected (this runs ~8x/s via the stream
+    // sampler). Diagnose ONCE per selector change so the log names what matched
+    // when the canonical id is gone.
+    let lastEl = null;
+    let lastSel = null;
+    let warnedFor = null;
+    return () => {
+      if (lastEl && lastEl.isConnected) return lastEl;
+      for (const sel of S.editorList) {
+        const el = document.querySelector(sel);
+        if (el) {
+          if (sel !== lastSel) {
+            diag("chatgpt.editor.sel", { sel, fallback: sel !== S.editorList[0] });
+            if (sel !== S.editorList[0] && warnedFor !== sel) {
+              warnedFor = sel;
+              console.warn(`[zeroscript] chatgpt: '#prompt-textarea' not found - editor matched by fallback '${sel}'. If the bar is missing or input misbehaves, report this line.`);
+            }
+          }
+          lastEl = el;
+          lastSel = sel;
+          return el;
+        }
+      }
+      lastEl = null;
+      lastSel = null;
+      return null;
+    };
+  })();
   const editorText = () => {
     const e = getEditor();
     return e ? e.textContent || "" : "";
@@ -308,7 +366,12 @@ const ZSProvider = (() => {
   function barMount() {
     const ed = getEditor();
     if (!ed) return null;
-    const box = ed.closest("[class*='composer-surface']");
+    // Canonical: the rounded surface carrying --composer-surface-primary.
+    // Fallback: the wrapping <form> - a 2026-09-style rename of the surface
+    // class must degrade to an in-flow bar on top of the composer (the form's
+    // first child), never to no bar at all. topArea() below is a no-op on a
+    // non-grid form, so the bar just stacks above the editor.
+    const box = ed.closest("[class*='composer-surface']") || ed.closest("form");
     if (!box) return null;
     const area = topArea(box);
     if (area) {

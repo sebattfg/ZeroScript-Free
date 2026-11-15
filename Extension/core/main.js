@@ -19,25 +19,24 @@
   const log = (...a) => console.log("[zeroscript]", ...a);
 
   // ── Human-paced sends (RNG pause before every injection) ────────────────
-  // The agentic loop used to send turns back-to-back with a near-zero,
-  // perfectly regular delay (~200ms settle). Two problems with that: the
-  // site's own frequency cap answers "Messages too frequent. Try again
-  // later" once a session gets going, and behavioral risk-scoring
-  // (reCAPTCHA/Cloudflare, Arena's captcha) reads the machine-gun rhythm as
-  // a bot signal. Every send therefore waits a RANDOM human-reaction-time
-  // pause first, uniformly drawn from 3.389s to 16.82s (the recommended
-  // working range), so the gap between two messages is never regular and
-  // never sub-10s-by-default. REVERT: flip HUMANIZE_SEND to false - single
-  // toggle, no other changes needed.
+  // A small RANDOM human-reaction-time pause before each send so the gap
+  // between two messages is never perfectly regular (behavioral risk-scoring
+  // reads a machine-gun rhythm as a bot signal). Kept SMALL (0.4s-1.4s):
+  // the 3.389s-16.82s range tried in PR #121 made every auto-turn crawl for
+  // up to ~17s and users read that as "the agent hung" - while the thing it
+  // aimed to prevent (the frequency-cap drip loop) is already handled by the
+  // rate-limit LATCH below. This is rhythm camouflage only.
+  // REVERT: flip HUMANIZE_SEND to false - single toggle, no other changes
+  // needed.
   const HUMANIZE_SEND = true;
-  const SEND_JITTER_MS = [3389, 16820]; // [min, max] ms, uniform RNG per send
+  const SEND_JITTER_MS = [400, 1400]; // [min, max] ms, uniform RNG per send
   async function jitterBeforeSend() {
     if (!HUMANIZE_SEND || A.stop) return;
     const [lo, hi] = SEND_JITTER_MS;
     const waitMs = lo + Math.random() * (hi - lo);
     diag("send.jitter", { waitMs: Math.round(waitMs) });
     // Sleep in small slices so a user Stop cuts the pause short instead of
-    // holding the "Agent is working" state for up to ~17s after the click.
+    // holding the "Agent is working" state after the click.
     const until = Date.now() + waitMs;
     while (Date.now() < until && !A.stop) {
       await sleep(Math.min(150, until - Date.now()));
