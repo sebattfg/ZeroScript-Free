@@ -1,9 +1,8 @@
 # Agent rules (checklist)
 
 The short version of `system-prompt.md`: what the AI must do, why, and what the
-controller enforces when it does not. The drift check in
-`tools/prompts.py --check` keeps these rules from diverging from
-`extension/core/config.js`.
+controller enforces when it does not. The live text the extension sends lives in
+`extension/core/config.js`; keep the two in step when you change a rule.
 
 ## 1. One command per reply
 

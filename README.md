@@ -10,7 +10,7 @@
 
 **NonZeroScript** is the **official derivative of [ZeroScript](https://github.com/sebattfg/ZeroScript-Free)**, rebuilt for **game editors** instead of Roblox Studio. It turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a real editor agent: read and write **GDScript or C#**, create scenes and nodes, change project settings, run play-tests and read errors — all from a normal AI chat, with **no API key and no terminal**.
 
-It is **multi-editor by design**: the browser extension and the console only speak one small editor-agnostic protocol, and every editor gets its own plugin folder under `editor/`. **Godot 4.7.2 (GDScript + C#) ships today**; adding Unity, Unreal or another engine means writing one adapter, not rewriting the agent. See [`editor/PROTOCOL.md`](editor/PROTOCOL.md).
+It is **multi-editor by design**: the browser extension and the console only speak one small editor-agnostic protocol, and every editor has its own plugin folder under `editor/`. **Godot 4.7.2 (GDScript + C#) works today**; other engines plug into the same protocol. See [`editor/PROTOCOL.md`](editor/PROTOCOL.md).
 
 > **Official derivative.** NonZeroScript is the ZeroScript project's multi-editor edition — an official derivative maintained alongside the original, not an unrelated fork. The Roblox Studio integration, the Roblox MCP bridge and Roblox-specific instructions are intentionally **not** part of this edition. Everything else — the browser-extension agent loop, the command protocol and the free-forever promise — comes from ZeroScript and remains GPL-3.0.
 
@@ -62,15 +62,15 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 - **ChatGPT support updated** for the current composer, alongside DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI and Arena.
 - **Free and open source.** GPL-3.0, no account, no subscription, no API key.
 
-## Install
+## Download and install
 
-There are three pieces. Install all three once. **Prebuilt packages live in [`dist/`](dist)** (`NonZeroScript-<version>.zip` contains everything), so you can skip the build step entirely.
+Everything you need is in **[`dist/NonZeroScript-0.2.0.zip`](dist)** — one archive with the controller, the browser extension and the Godot plugin. Extract it, then follow the three steps below. (The same folders are also in this repository if you prefer to browse them.)
 
 > **Platforms:** Windows 10/11 and macOS, 64-bit and 32-bit. **Linux is not supported** — no Linux launcher, no Linux package, no Linux instructions.
 
 ### 1. The controller (visual console + relay)
 
-- Install **Python 3.9 or newer** ([python.org/downloads](https://www.python.org/downloads/)). No `pip install` is needed — the controller uses only the standard library.
+- Install **Python 3.9 or newer** ([python.org/downloads](https://www.python.org/downloads/)). Nothing else is needed — no `pip install`.
 - Open the `controller` folder and double-click:
   - **Windows 10/11 (64-bit or 32-bit):** `start.bat`
   - **macOS (64-bit or 32-bit):** `start.command` (first launch: right-click → Open, or allow it in *System Settings → Privacy & Security*)
@@ -84,14 +84,12 @@ The same extension works in both browsers.
 
 1. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
 2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select the `extension` folder.
+3. Click **Load unpacked** and select the extracted `extension` folder.
 4. Optional: pin NonZeroScript to the toolbar.
-
-The extension has no build step; the folder is the extension. If you downloaded a release zip, extract it first.
 
 ### 3. The Godot 4.7.2 editor plugin
 
-1. In the release zip (or the `editor/godot-4.7.2` folder in this repository), you will find the plugin. Copy it into your Godot project so the path becomes:
+1. In the extracted archive (or the `editor/godot-4.7.2` folder in this repository) you will find the plugin. Copy it into your Godot project so the path becomes:
 
    ```
    your_project/
@@ -110,21 +108,9 @@ The extension has no build step; the folder is the extension. If you downloaded 
 
 That's it. The editor now exposes its tools to the local controller — it never listens for inbound connections itself.
 
-## Adding another editor
+## Other editors
 
-The controller and the extension only know the bridge protocol in
-[`editor/PROTOCOL.md`](editor/PROTOCOL.md):
-
-1. Create `editor/<engine>/` and implement the two POST endpoints (`/api/editor/poll`,
-   `/api/editor/result`) with the same status fields.
-2. Add a `build.json` (`{"artifact": "editor-unity", "target": "..."}`); the build
-   script packages one artifact per folder automatically.
-3. Describe the engine's commands in `controller/tools.json` (or add a second
-   catalogue) — the prompt is generated from it, so the AI sees the new tools
-   without touching the extension.
-
-Godot's adapter is the reference implementation: 29 commands, GDScript + C#,
-undoable scene edits, path guards and a read-only toggle.
+The console and the extension do not know Godot; they only know the bridge protocol described in [`editor/PROTOCOL.md`](editor/PROTOCOL.md). Every editor is one folder (`editor/<engine>/`) with its own plugin, its own download and the same commands. **Godot 4.7.2 is the adapter shipped today** — it is the reference implementation: 29 commands, GDScript + C#, undoable scene edits, path guards and a read-only toggle. A Unity or Unreal adapter is welcome, and it does not require touching the extension or the console.
 
 ## Godot tutorial (first run, step by step)
 
@@ -193,7 +179,7 @@ You can turn a session off temporarily without closing the tab: uncheck **轮换
 
 ## Performance modes
 
-The console has one dropdown (**性能模式**) with three profiles. Switching applies the profile's numbers immediately — no restart — and every value stays visible/editable in `controller/data/settings.json`.
+The console has one dropdown (**性能模式**) with three profiles:
 
 | Mode | RAM / CPU / disk | Poll cadence (browser / editor) | Log ring | Result cap | Best for |
 |---|---|---|---|---|---|
@@ -201,10 +187,11 @@ The console has one dropdown (**性能模式**) with three profiles. Switching a
 | **平均 / balanced** (default) | moderate | 1.2 s / 0.4 s | 800 lines | 12 000 chars | everyday use |
 | **最快速度 / turbo** | largest | 0.5 s / 0.25 s | 2 000 lines | 20 000 chars | a single project, speed over footprint |
 
+- Switching applies the profile immediately — no restart — and the numbers stay visible in the console.
 - The profile also sets how many timeline entries go into the memory brief, how many finished tasks stay in memory, and how often the console redraws.
 - `记忆保留天数` (memory keep-days) prunes `controller/data/memory/` on startup and on save; `0` keeps everything.
-- The editor plugin receives the poll cadence from the controller (`settings.poll_ms`), so eco mode slows the Godot bridge down too instead of just the UI.
-- The console shows the **real** resident memory of the relay (`/api/status → perf.rss_mb`), not an estimate.
+- The editor plugin receives the poll cadence from the controller, so eco mode slows the Godot bridge down too instead of just the UI.
+- The console shows the **real** resident memory of the relay, not an estimate.
 
 ## Input delay
 
@@ -310,88 +297,9 @@ Long results are capped (12 000 characters by default) so one command cannot eat
 - **Godot 4.7.2** (the editor plugin targets 4.7.2; it may work on nearby 4.x releases, but that is untested)
 - C# projects also need the **.NET build of Godot 4.7.2** and a .NET SDK; GDScript needs nothing extra
 - **Chrome or Edge** (Chromium 111+; the Edge package is the same extension)
-- **Python 3.9+** (controller; standard library only). On a 32-bit system install the 32-bit Python build.
+- **Python 3.9+** for the controller. On a 32-bit system install the 32-bit Python build.
 - **Windows 10/11** (64-bit or 32-bit) or **macOS** (64-bit or 32-bit)
-- **Linux is not supported** and is not tested: there is no Linux launcher or package.
-
-## Build from source (manual, never automatic)
-
-The ready-made archives in [`dist/`](dist) are committed, so end users never need this section. If you change the sources, rebuild manually — there is intentionally **no CI build**, nothing is published automatically.
-
-```bash
-python3 tools/build.py --check   # versions + prompt docs agree? build nothing
-python3 tools/build.py --clean   # rebuild every artifact from scratch
-```
-
-Output in `dist/`:
-
-```
-dist/NonZeroScript-0.2.0.zip          # everything below in one archive
-dist/controller.zip                   # controller/ (console + relay + Windows/macOS launchers)
-dist/extension.zip                    # extension/ (load unpacked in Chrome/Edge)
-dist/editor-godot-4.7.2.zip           # addons/nonzeroscript/ for a Godot project
-dist/SHA256SUMS.txt
-```
-
-`python3 tools/build.py --clean` first deletes `dist/` and then rebuilds every artifact. The zips are committed on purpose: the repository is the download.
-
-`--check` verifies that the version string matches in all seven places
-(`version.txt`, `controller/version.py`, `extension/manifest.json`,
-`controller/tools.json`, `plugin.cfg`, `commands.gd`, `bridge.gd`) and that
-`prompts/tool-catalogue.md` still matches `controller/tools.json`; the build
-refuses to run when they disagree, so a release can never be mislabeled.
-
-The build script uses only the Python standard library. `--exe` optionally builds a single-file controller executable with PyInstaller if you have it installed.
-
-Two tests run offline and need no packages:
-
-```bash
-python3 tools/smoke_test.py    # starts a controller + fake editor + two fake browsers,
-                               # checks rotation, the memory brief and command execution
-node tools/test_parser.js      # parser cases (JSON, fenced blocks, truncation, aliases)
-python3 tools/prompts.py --check   # prompt docs still match tools.json + config.js
-```
-
-There is **no GitHub Actions workflow on purpose**: nothing is built or published automatically. Run the build yourself when you want release archives.
-
-Repository layout:
-
-```
-NonZeroScript/
-  controller/              visual console, relay, rotation, memory (Python stdlib)
-    ui/                    console page (no build step)
-    tools.json             command catalogue (single source of truth)
-  extension/               Chrome/Edge MV3 extension
-    core/                  provider-agnostic agent loop, parser, transport
-    providers/             one adapter per AI website
-  editor/                  one folder per editor adapter
-    PROTOCOL.md            editor-agnostic bridge contract
-    godot-4.7.2/           Godot plugin (installs as addons/nonzeroscript)
-  prompts/                 the instructions the AI gets (system prompt, rules, catalogue)
-  dist/                    prebuilt release archives (committed)
-  tools/                   build (+ --check), smoke test, parser test, prompt exporter,
-                           clean_master.sh
-  assets/                  banner and icon
-```
-
-## Branches: the `master` landing page
-
-The product lives on `v0.1.0-dev`. `master` is only a landing page: the
-introduction and the licence, nothing else. Older commits of `master` still
-contain the legacy ZeroScript tree, and this repository does not rewrite
-branches on its own, so cleaning it is a deliberate, manual step:
-
-```bash
-tools/clean_master.sh             # show the plan, change nothing
-tools/clean_master.sh --no-push   # build the commit locally, no push
-tools/clean_master.sh --yes       # force-push master = README + README.zh-CN + LICENSE + NOTICE
-```
-
-The script takes those four files from the **current branch** (not from the old
-master, which still described the previous product), builds a parentless commit
-with git plumbing — your working tree, index and branch are untouched — and
-prints the old `master` SHA before force-pushing. If GitHub refuses (a protected
-default branch), it prints the two settings that unblock it.
+- **Linux is not supported**: there is no Linux launcher or package.
 
 ## Troubleshooting
 
@@ -402,13 +310,13 @@ Open the project in Godot and enable the plugin under *Project Settings → Plug
 Start the controller. If it is running on another port, open the extension popup and set the same address there (and in the Godot dock).
 
 **Port 8790 is already in use.**
-Close the other controller, or start with `python3 main.py --port 8791` and update the extension popup + Godot dock. Only use `--host 0.0.0.0` for a deliberate remote demo — it exposes file editing to your LAN.
+Close the other controller, or start it on another port and put the same address in the extension popup and the Godot dock.
 
 **The AI answers in plain text instead of a command.**
 Send a reminder in the chat ("Use ONE NonZeroScript JSON command") or start a fresh session. On Arena keep **Direct** mode. Kimi and Gemini occasionally prefer their own tools; DeepSeek is the most consistent.
 
-**ChatGPT/Gemini/Kimi redesign broke the page bar.**
-Provider DOM changes are expected occasionally. The provider adapter is one file in `extension/providers/`; update its selectors. The console and the agent loop do not need changes.
+**The page bar disappeared after an AI site update.**
+AI sites change their layout now and then; the extension is updated to match. Until then, another provider (DeepSeek, ChatGPT) keeps working, and the console is unaffected.
 
 **A task ended by itself.**
 The protocol is one command per reply; a reply with no command means "finished or I need a decision". The console shows the final reply. Queue the next task to continue.
@@ -418,12 +326,12 @@ Stop the controller and delete `controller/data/memory/`. Settings and memory ar
 
 ## Support and credits
 
-NonZeroScript is free and open source (GPL-3.0). It is the **official Godot derivative of ZeroScript**, which remains the upstream project for Roblox Studio. Credit for the original idea, agent loop and providers goes to the ZeroScript authors; the Godot plugin, controller, rotation and timeline memory are new in this edition.
+NonZeroScript is free and open source (GPL-3.0). It is the **official game-editor derivative of ZeroScript**, which remains the upstream project for Roblox Studio. Credit for the original idea, agent loop and providers goes to the ZeroScript authors; the editor plugins, the controller, rotation and timeline memory are new in this edition.
 
 - Original ZeroScript: [github.com/sebattfg/ZeroScript-Free](https://github.com/sebattfg/ZeroScript-Free)
 - This repository: [github.com/Moonano-MG/NonZeroScript](https://github.com/Moonano-MG/NonZeroScript)
 
-If you find a bug, open an issue with the console log (the **实时日志** panel) and the page's browser console output. Those two make provider DOM bugs much easier to fix.
+If something goes wrong, open an issue with the console log (the **实时日志** panel) and what the page bar shows. Those two make it easy to fix.
 
 ## License
 
