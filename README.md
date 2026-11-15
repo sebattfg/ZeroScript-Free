@@ -1,128 +1,358 @@
-# ZeroScript - Free AI Agent for Roblox Studio
+# NonZeroScript - Free AI Agent for Godot 4.7.2
 
-![GitHub stars](https://img.shields.io/github/stars/sebattfg/ZeroScript-Free?style=social)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Godot](https://img.shields.io/badge/Godot-4.7.2-478cbf)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.0-6366f1)
 
-**ZeroScript** is a free browser extension that turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Arena or Meta AI into a Roblox Studio AI agent.
-Control Roblox Studio with AI directly from your browser - read/edit scripts, run Luau, generate assets, all from a normal AI chat. No API key, no terminal, no coding needed.
+![NonZeroScript banner](assets/banner.svg)
 
-> 🌐 **Website: [zerodev.tools/zeroscript](https://zerodev.tools/zeroscript)** the free Lemonade.gg / Luamotion alternative for building Roblox games with AI.
+**NonZeroScript** is the **official derivative of [ZeroScript](https://github.com/sebattfg/ZeroScript-Free)**, rebuilt for **Godot 4.7.2** instead of Roblox Studio. It turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a real Godot editor agent: read and write **GDScript or C#**, create scenes and nodes, change project settings, run play-tests and read errors — all from a normal AI chat, with **no API key and no terminal**.
 
-Eight AI providers are supported: **DeepSeek** (chat.deepseek.com, recommended), **ChatGPT** (chatgpt.com), **Google Gemini** (gemini.google.com), **Kimi** (kimi.ai, Moonshot AI), **GLM** (chat.z.ai, Z.ai), **Qwen** (chat.qwen.ai), **Arena** (arena.ai, a multi-model playground) and **Meta AI** (meta.ai). On ChatGPT, screenshots and image input are turned off on purpose: the free tier limits files and images on a separate quota from messages, so vision would only work part of the day. Gemini and Kimi can be unstable: Gemini tends to stop using the Roblox tools in long sessions, and Kimi sometimes uses its own native tools instead of the Roblox commands. On Arena, use **Direct** mode (ZeroScript only supports Direct; it blocks Start in Battle / Side-by-Side / Agent modes). DeepSeek is the recommended provider.
+> **Official derivative.** NonZeroScript is the ZeroScript project's Godot edition — an official derivative maintained alongside the original, not an unrelated fork. The Roblox Studio integration, the Roblox MCP bridge and Roblox-specific instructions are intentionally **not** part of this edition. Everything else — the browser-extension agent loop, the command protocol and the free-forever promise — comes from ZeroScript and remains GPL-3.0.
 
-> 💬 **Stuck? Join the [Discord community](https://discord.gg/9aNyZsMWcb)** get help, share feedback, and follow updates.
+> 🌐 Upstream ZeroScript: **[zerodev.tools/zeroscript](https://zerodev.tools/zeroscript)** · [github.com/sebattfg/ZeroScript-Free](https://github.com/sebattfg/ZeroScript-Free)
 
-> *Also known as: ZeroScript Roblox, ZeroScript free download, Roblox ChatGPT agent, Roblox DeepSeek agent, Roblox Gemini agent, Roblox Kimi agent, Roblox GLM agent, Roblox Qwen agent, Roblox Arena agent, Roblox Meta AI agent, Roblox Studio AI automation, Luau AI, MCP Roblox, lemonade alternative free, lemonade.gg alternative, free Roblox AI agent, free lemonade roblox alternative*
+## What changed from ZeroScript
 
-## ⚠️ ZeroScript is Free Beware of Paid Copycats
-
-ZeroScript is 100% free and open-source. It always has been, and it always will be. There is no official paid version, no subscription, and no sign-in required to use the extension.
-
-If you come across a site or extension using the ZeroScript name that asks for payment or account creation, it is **not** this project. The only official links are the ones listed at the top of this README.
+| | ZeroScript (Roblox) | **NonZeroScript (Godot)** |
+|---|---|---|
+| Target | Roblox Studio via MCP | **Godot 4.7.2 via an editor plugin** |
+| Control | Small bar in the chat + CLI bridge | **Visual console + local relay**, no command line |
+| Input pacing | Fixed internal waits | **Random wait between a minimum and maximum number of seconds before every simulated input** |
+| Browsers | One tab | **Multi-browser AI rotation**, with a shared timeline memory |
+| Memory | Per-place project memory | **Timeline files per task and per browser session**, used to hand work between browsers |
+| Providers | 8 | **8: ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI, Arena** (ChatGPT support updated) |
 
 ## How it works
 
 ```
-AI chat (ChatGPT / DeepSeek / Gemini / Kimi / GLM / Qwen / Arena / Meta AI, in your browser) -> ZeroScript Extension -> Bridge (your PC) -> Roblox Studio
+ ┌─────────────────────────────┐        ┌──────────────────────────────┐
+ │  Browser (Chrome / Edge)     │        │  Godot 4.7.2 editor           │
+ │  ChatGPT · DeepSeek · Gemini │        │  addons/nonzeroscript         │
+ │  Kimi · GLM · Qwen · Meta    │        │  (file + scene commands)     │
+ │  Arena                       │        │                              │
+ │        ▲   browser extension │        │        ▲   editor plugin     │
+ └────────┼─────────────────────┘        └────────┼─────────────────────┘
+          │  HTTP (localhost)                     │  HTTP poll (localhost)
+          ▼                                       ▼
+ ┌──────────────────────────────────────────────────────────────────────┐
+ │  controller/  — visual console + local relay + rotation + memory      │
+ │  http://127.0.0.1:8790                                                │
+ └──────────────────────────────────────────────────────────────────────┘
 ```
 
-The extension runs inside the chat page (ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Arena or Meta AI). When you type a request, it sends commands to the Bridge running on your PC, which drives Roblox Studio through the built-in MCP server.
+1. The **browser extension** runs inside the AI chat page. It types the prompt, waits for the answer, parses **one** command and reports it.
+2. The **controller** is a small local program (Python standard library only). It shows a **visual console**, decides which browser tab gets the next turn (round-robin), executes the command through the editor and stores the timeline.
+3. The **Godot editor plugin** performs the real work in your project: files, scenes, nodes, project settings, play-tests and logs.
 
-## Setup
+No cloud service is involved. Everything runs on your machine, and the only network traffic is between your browser, the controller and Godot on `127.0.0.1`.
 
-> 📺 **Lost? Watch the [setup tutorial on YouTube](https://youtu.be/kPKiZLZ9_Ps) it covers every step below.**
+## Features
 
-### 1. Download the zip and install the extension
+- **Visual console instead of a command line.** Start the controller by double-clicking a script; the console opens in your browser. Queue tasks, watch sessions, inspect the timeline, edit the delay and rotation settings.
+- **Random input delay.** Set a minimum and maximum number of seconds (e.g. 2–6 s). Before every simulated input — the startup prompt, a task, or a tool result — NonZeroScript waits a random time in that range. This is much gentler on AI sites than instant, regular automation.
+- **Multi-browser AI rotation.** Open 3 browsers (or 3 tabs), connect all of them, and press **启动 / Start** in each. Every AI call rotates to the next ready session. You can filter a task to one provider or let it use all of them.
+- **Timeline memory.** Each browser AI has its own private chat context, so rotation would normally lose the plot. The controller writes every prompt, reply and tool result to `controller/data/memory/` and prepends a compact **memory brief** to the next turn, whichever browser gets it.
+- **A real Godot toolset** — 29 commands (GDScript **and** C#): read/search/write/edit files, inspect and edit the open scene, add/remove nodes, instance scenes, change project settings, run and stop the game, read the editor log and capture a screenshot for the human.
+- **ChatGPT support updated** for the current composer, alongside DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI and Arena.
+- **Free and open source.** GPL-3.0, no account, no subscription, no API key.
 
-Download the latest zip from the **Releases** page and extract it. The zip contains both the **Bridge** and the **extension folder**.
+## Install
 
-To load the extension:
+There are three pieces. Install all three once.
 
-- Go to `edge://extensions` (Edge) or `chrome://extensions` (Chrome)
-- Enable **Developer mode** (top right toggle)
-- Click **Load unpacked**
-- Select the `zeroscript-extension` folder from the extracted zip
+### 1. The controller (visual console + relay)
 
-### 2. Start Roblox Studio and enable MCP
+- Install **Python 3.9 or newer** ([python.org/downloads](https://www.python.org/downloads/)). No `pip install` is needed — the controller uses only the standard library.
+- Open the `controller` folder and double-click:
+  - **Windows:** `start.bat`
+  - **macOS:** `start.command` (first launch: right-click → Open, or allow it in *System Settings → Privacy & Security*)
+  - **Linux:** `start.sh`
+- A console window opens and your browser shows **http://127.0.0.1:8790/** — the visual console.
 
-Open Studio and load a Place, then enable MCP (first time only):
+> Keep the controller window open while you work. Closing it stops the relay. Changing the port requires a restart.
 
-- Click **Assistant AI** in the top bar
-- Click **...** (top right of the Assistant panel)
-- Click **Manage MCP Servers**
-- Click **Enable Studio as MCP Server**
+### 2. The browser extension (Chrome / Edge)
 
-> Not sure where to find these options? The [video tutorial](https://youtu.be/kPKiZLZ9_Ps) shows exactly where to click.
+The same extension works in both browsers.
 
-### 3. Run the Bridge
+1. Open `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
+2. Turn on **Developer mode**.
+3. Click **Load unpacked** and select the `extension` folder.
+4. Optional: pin NonZeroScript to the toolbar.
 
-- **Windows:** double-click `start.bat` inside the extracted folder.
-- **macOS:** double-click `MacOS_Start.command` inside the extracted folder. The first time, macOS will show a security warning ("could not verify... free of malware") - this is normal for any script downloaded outside the App Store, click **Done**, then go to **System Settings > Privacy & Security**, scroll to the bottom, and click **Open Anyway**. You only need to do this once.
+The extension has no build step; the folder is the extension. If you downloaded a release zip, extract it first.
 
-A small window opens, that means the Bridge is running.
+### 3. The Godot 4.7.2 editor plugin
 
-### 4. Start a session
+1. In the release zip (or the `editor/godot-4.7.2` folder in this repository), you will find the plugin. Copy it into your Godot project so the path becomes:
 
-Go to https://chat.deepseek.com (recommended), https://chatgpt.com, https://gemini.google.com, https://www.kimi.ai, https://chat.z.ai, https://chat.qwen.ai, https://arena.ai or https://www.meta.ai and open a new chat. The ZeroScript bar appears above the input box. Click **Start session**. Type what you want to build.
+   ```
+   your_project/
+     project.godot
+     addons/
+       nonzeroscript/
+         plugin.cfg
+         plugin.gd
+         core/
+         ui/
+   ```
 
-> Only works on chat.deepseek.com, chatgpt.com, gemini.google.com, kimi.ai, chat.z.ai, chat.qwen.ai, arena.ai and meta.ai - it will not work on any other site.
-> On Arena, keep the mode dropdown on **Direct** - ZeroScript blocks Start in Battle / Side-by-Side / Agent modes (it only drives a single Direct reply).
-> Gemini and Kimi can be unstable (model behavior, not the extension): Gemini may stop using the Roblox tools after a while, and Kimi may use its own native tools instead. If the AI starts answering in plain text instead of acting, remind it to use the commands or start a new session.
-### 5. Watch the setup tutorial
+2. In Godot: **Project → Project Settings → Plugins** → enable **NonZeroScript**.
+3. A **NonZeroScript** dock appears on the right. It should show `● 已连接` (connected) once the controller is running.
+4. Check the URL in the dock: `http://127.0.0.1:8790`. If you changed the controller port, change it here too and click **应用**.
 
-[Watch the setup tutorial on YouTube](https://youtu.be/kPKiZLZ9_Ps)
+That's it. The editor now exposes its tools to the local controller — it never listens for inbound connections itself.
 
-## What the AI can do
+## Godot tutorial (first run, step by step)
 
-- Read and edit scripts
-- Run Luau code directly in Studio
-- Inspect the game tree and instances
-- Generate meshes, materials, and models
-- Browse and insert from the Creator Store
-- Control play-testing
-- **Remember your project across sessions** persistent project memory saved inside your place
+This walks through a complete first session.
 
-## New in 1.5.5
+1. **Create a project.** Open Godot 4.7.2, create a new project (for example `MyFirstGame`), and open it.
+2. **Install the plugin.** Copy `addons/nonzeroscript` into the project (step 3 above), then enable it in *Project Settings → Plugins*.
+3. **Start the controller.** Double-click `controller/start.bat` (Windows) or `start.command` (macOS). The visual console opens at `http://127.0.0.1:8790/`.
+4. **Connect a browser.** Load the extension, open **https://chat.deepseek.com** (recommended) or any supported AI, start a **new chat**, and click **启动** in the NonZeroScript bar above the input box. The bar turns green and says *已就绪 · 等待操控台派发任务*.
+5. **Queue a task.** In the console, type something like:
 
-- **DeepSeek: the agent starts again on the new unified model.** DeepSeek merged Instant, Expert and Vision into one model and removed the model picker, which left "Start Roblox agent" stuck on "DeepSeek mode not ready". ZeroScript now recognises the new chat box, switches Search off and starts, with DeepThink left on.
-- **DeepSeek: screenshots work on every chat.** Images no longer need the Vision tab (it is gone) - the unified model sees your Studio captures, one at a time or several in a row.
+   > Create a main menu for my project: a new scene at `res://scenes/main_menu.tscn` with a title label, a "Start" button and a "Quit" button. Put the script at `res://scripts/main_menu.gd`, make the buttons work, and set the project's main scene to the menu.
 
-## New in 1.5.4
+   Click **加入队列** (add to queue). The controller assigns turn 1 to your browser.
+6. **Watch it work.** The page bar shows the delay countdown (`等待 4.2 秒后输入…`), then the AI thinks, the command chip appears in the chat, and the Godot dock logs each command. The console's **实时日志** (live log) and **时间线记忆** (timeline) show the same story. The scene tree and files update in Godot as the AI works.
+7. **Iterate.** When the task finishes, queue another one: *"Add a settings panel with a volume slider and save it with ConfigFile."* The AI keeps its context; you can also start a new chat and press Start again.
 
-- **ChatGPT: the ZeroScript bar is back above the composer.** ChatGPT redesigned its input box and renamed the layout slot the bar sits in. ZeroScript kept asking for the old name, so the browser dropped the bar into a stray strip at the bottom right of the composer and squeezed the text field to nothing. The bar now takes the right row again, and it reads the layout live instead of trusting a fixed name, so the next redesign should not knock it out.
-- **ChatGPT: long commands read cleanly on the new interface.** The same redesign replaced the code-block editor that used to hide line breaks and cut long lines off - the cause of the truncated commands fixed in 1.5.1. A 400-line block now reads back whole. If you are still on the old interface, the previous workaround is untouched.
+### Example prompts that work well
 
-## New in 1.5.3
+- *"Read `project.godot` and the scene tree, then add a `Player` CharacterBody2D with WASD movement and a camera. Save the script to `res://scripts/player.gd`."*
+- *"Find every `print(` in GDScript and replace it with a `Logger.info()` call, adding the logger autoload."*
+- *"This is a .NET project: add `res://scripts/Player.cs` with a CharacterBody2D and WASD movement, attach it to the Player node, and save."*
+- *"Make a pause menu (CanvasLayer) with Resume / Restart / Quit. Wire it to the `ui_cancel` action."*
+- *"Run the project, then read the editor log and fix the first three script errors."*
+- *"Change the window size to 1280×720, stretch mode `canvas_items`, and the default clear color."*
 
-- **Kimi moved to kimi.ai.** The old address, kimi.com, now asks for a Chinese phone number to sign in, which locked most people out. Open https://www.kimi.ai instead - the page is unchanged, the bar appears above the input box exactly as before. Reopen any Kimi tab you had on the old address.
-- **DeepSeek: the Instant model can now run the agent.** Picking Instant used to leave "Start Roblox agent" spinning forever with no explanation, because only Expert and Vision were accepted. Choose Instant before starting and the session runs on it - much faster than Expert, without the reasoning pass. Images stay off on Instant just like on Expert; the Vision tab remains the only one that can see screenshots.
-- **DeepSeek: a reply written in DeepSeek's own tool-call format no longer kills the turn.** DeepSeek occasionally answers with its internal markup instead of a ZeroScript command. Nothing recognised it, so the tool never ran, the raw tags stayed on screen and the agent stopped dead with you waiting. It is now caught, hidden behind a tool chip like any other command, and DeepSeek is told to rewrite the call properly.
-- **ChatGPT: the bar no longer clips into the composer's rounded corners.**
+### Tips
 
-See [CHANGELOG.md](CHANGELOG.md) for older releases.
+- **Small steps beat giant rewrites.** Ask for one feature at a time. The AI inspects before editing, and each command is visible in the console.
+- **Keep the console open.** It is the only place to queue tasks and see which browser is doing what.
+- **Use 2–6 seconds of delay.** Shorter delays are possible, but a human-like pause is less likely to trip automated-input heuristics on AI sites.
+- **v0.1.0 is text-first.** The plugin can save a screenshot for *you* (`capture_editor_viewport`), but screenshots are not sent to the AI yet.
 
-## Panel status
+## Multi-browser AI rotation and memory
+
+You can mix browsers, tabs and providers:
+
+1. Open DeepSeek in Chrome and press **启动**.
+2. Open the same DeepSeek (or ChatGPT, Gemini…) in Edge and press **启动**.
+3. In the console, both sessions appear under **浏览器会话**. Their **轮换** checkbox is on by default.
+4. Queue a task. Turn 1 goes to the first ready session, turn 2 to the next, and so on.
+
+Why it is useful: you can use several free AI accounts/tabs at once and spread the load, or fall back to whichever provider is fastest today. Because each tab has its own chat memory, the controller writes a **memory brief** into every turn after the first:
+
+```
+MEMORY BRIEF (earlier turns of this task, newest last - possibly handled by another browser):
+[TASK] Create a main menu ...
+[10:31:02] Chrome · DeepSeek replied: I will inspect the project first.
+[10:31:05] tool get_editor_state -> OK: {"project_name": "MyFirstGame", ...}
+Continue from the latest state. Do not repeat finished work.
+```
+
+Files live under `controller/data/memory/`:
+
+```
+memory/
+  tasks/20261115-103000-a1b2c3d4.jsonl     # one task = one shared timeline
+  sessions/Chrome-deepseek-9f3a2c11.jsonl   # one browser tab = one private timeline
+```
+
+Each line is a timestamped event (task, dispatch, reply, tool, note), so you can inspect or archive a session later. Settings in the console control how many entries and how many characters go into the brief.
+
+You can turn a session off temporarily without closing the tab: uncheck **轮换** in the console, or click **停止** in the page bar to fully detach it.
+
+## Input delay
+
+In the console → **输入节奏**:
+
+- **最小秒数 / 最大秒数** — the random range. Before *every* simulated input the extension picks a uniform random value in this range and shows a countdown in the page bar.
+- **最大回合** — a hard cap per task.
+- **记忆条数** — how many recent timeline events are prepended when a turn rotates.
+- **多浏览器轮换** — round-robin on/off.
+- **追加给 AI 的自定义指令** — extra instructions appended to the system prompt (coding style, naming conventions, engine version quirks…).
+
+## Supported AI providers
+
+| Provider | Address | Notes |
+|---|---|---|
+| **DeepSeek** | chat.deepseek.com | Recommended. Fast, reliable tool use. |
+| **ChatGPT** | chatgpt.com | Updated composer support. Image input stays off (free-tier quota). |
+| **Google Gemini** | gemini.google.com | Can stop using tools in long sessions; start a new session if it drifts. |
+| **Kimi** | kimi.ai | Sometimes uses its own native tools instead of commands. |
+| **GLM** | chat.z.ai | Prefer GLM-5.2; z.ai can be busy at peak times. |
+| **Qwen** | chat.qwen.ai | Works best with a tool-capable model selected. |
+| **Meta AI** | meta.ai | Vision-capable page; text commands only in v0.1.0. |
+| **Arena** | arena.ai | Keep the mode on **Direct** — Battle / Side-by-side / Agent modes are blocked. |
+
+All eight have a shared command protocol, so you can rotate between them freely. The console's **新建任务** dropdown can pin a task to one provider.
+
+## Panel status (in the AI page)
 
 | Dot | Meaning |
 |-----|---------|
-| Green | Bridge + Studio ready (a place is open) |
-| Yellow | Bridge OK, but Studio isn't usable yet - open Roblox Studio, load a place, or enable its MCP server (hover the dot for the exact reason) |
-| Grey | Bridge offline - run start.bat (Windows) or MacOS_Start.command (macOS) |
+| Green | Connected to the controller, session bootstrapped, ready for tasks |
+| Yellow | Connected but not started yet — click **启动** |
+| Red | Controller offline or a start error (hover/read the toast) |
+| Pulsing | Waiting for the input delay, typing, or waiting for the AI |
+
+The console has its own status pills: **中转** (controller), **Godot** (editor plugin), **会话** (ready/total) and **端口**.
+
+## Commands the AI can use
+
+| Group | Commands |
+|---|---|
+| Inspect | `list_tools`, `get_editor_state`, `list_files`, `read_file`, `search_in_files`, `get_scene_tree`, `get_node_info`, `get_project_settings`, `get_editor_log`, `capture_editor_viewport` |
+| Files | `write_file`, `write_files`, `edit_file`, `create_dir`, `delete_path`, `rename_path`, `scan_filesystem` |
+| Scene | `add_node`, `attach_script`, `remove_node`, `set_node_property`, `select_nodes`, `instantiate_scene`, `open_scene`, `create_scene`, `save_scene` |
+| Project / run | `set_project_setting`, `run_project`, `stop_project` |
+
+Scripts are written in an explicit block, so they never have to be escaped into JSON. **GDScript** uses `###GDSCRIPT###` and **C#** uses `###CSHARP###`; the file extension decides the language:
+
+````
+{"command": "write_file", "params": {"path": "res://scripts/player.gd"}}
+###GDSCRIPT###
+extends CharacterBody2D
+
+@export var speed: float = 300.0
+
+func _physics_process(_delta: float) -> void:
+	var dir := Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
+	velocity = dir * speed
+	move_and_slide()
+###END_GDSCRIPT###
+````
+
+````
+{"command": "write_file", "params": {"path": "res://scripts/Player.cs"}}
+###CSHARP###
+using Godot;
+
+public partial class Player : CharacterBody2D
+{
+    [Export] public float Speed { get; set; } = 300.0f;
+
+    public override void _PhysicsProcess(double delta)
+    {
+        var dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+        Velocity = dir * Speed;
+        MoveAndSlide();
+    }
+}
+###END_CSHARP###
+````
+
+### GDScript and C#
+
+Both languages are first-class; you never convert one into the other.
+
+| What | GDScript | C# |
+|---|---|---|
+| Script file | `.gd` | `.cs` |
+| Code block | `###GDSCRIPT### … ###END_GDSCRIPT###` | `###CSHARP### … ###END_CSHARP###` |
+| Godot build | any 4.7.2 | the **.NET** build of 4.7.2 |
+| Class name | implicit | must match the file name (`Player.cs` → `class Player`) |
+| Attach | `attach_script`, `add_node.script_path` | same commands |
+
+- `get_editor_state` reports `csharp` (the running editor can compile C#), `dotnet` (a `.sln`/`.csproj` exists) and `language`. The AI reads this before choosing a language, so a GDScript project is not flooded with `.cs` files.
+- On the standard (non-.NET) Godot build, a `.cs` file can still be written, but the result carries a `warning` and `attach_script` refuses to load it with an explicit message instead of failing silently.
+- Godot compiles C# itself — the plugin never shells out to `dotnet`. If a script is missing at play time, run **Build** in the MSBuild panel; `run_project` returns that hint too.
+- A C# project needs `dotnet`/Mono installed for the editor's own build step; that is a Godot requirement, not a NonZeroScript one.
+
+Long results are capped (12 000 characters by default) so one command cannot eat the whole chat context. The plugin refuses paths outside `res://`/`user://`, protects `.git`, `.godot`, the plugin itself and `project.godot`, and requires `recursive=true` before deleting a folder. Writing can be disabled entirely in the dock.
 
 ## Requirements
 
-- Windows or macOS
-- Roblox Studio (MCP support built-in)
-- Microsoft Edge or Chrome
-- Python 3.9+ (installed automatically on Windows, or install it yourself on macOS - see [python.org/downloads](https://www.python.org/downloads/))
+- **Godot 4.7.2** (the editor plugin targets 4.7.2; it may work on nearby 4.x releases, but that is untested)
+- C# projects also need the **.NET build of Godot 4.7.2** and a .NET SDK; GDScript needs nothing extra
+- **Chrome or Edge** (Chromium 111+; the Edge package is the same extension)
+- **Python 3.9+** (controller; standard library only)
+- Windows, macOS or Linux
 
-## Support
+## Build from source (manual, never automatic)
 
-ZeroScript is free. If it saves you time: [Ko-fi](https://ko-fi.com/sebattfg) - Robux tip passes available in the extension panel
+This repository intentionally has **no CI build**. Build release zips yourself:
 
----
+```bash
+python3 tools/build.py
+```
 
-Credit: the idea for connecting other MCP servers (Blender, Sketchfab, etc.) alongside Roblox Studio came from [javnpa](https://github.com/javnpa).
+Output in `dist/`:
 
-Credit: macOS/Linux support contributed by [archivealf](https://github.com/archivealf).
+```
+dist/NonZeroScript-0.1.0.zip          # everything below in one archive
+dist/controller.zip                   # controller/ (console + relay + start scripts)
+dist/extension.zip                    # extension/ (load unpacked in Chrome/Edge)
+dist/editor-godot-4.7.2.zip           # addons/nonzeroscript/ for a Godot project
+dist/SHA256SUMS.txt
+```
+
+The build script uses only the Python standard library. `--exe` optionally builds a single-file controller executable with PyInstaller if you have it installed.
+
+Two tests run offline and need no packages:
+
+```bash
+python3 tools/smoke_test.py    # starts a controller + fake editor + two fake browsers,
+                               # checks rotation, the memory brief and command execution
+node tools/test_parser.js      # parser cases (JSON, fenced blocks, truncation, aliases)
+```
+
+There is **no GitHub Actions workflow on purpose**: nothing is built or published automatically. Run the build yourself when you want release archives.
+
+Repository layout:
+
+```
+NonZeroScript/
+  controller/              visual console, relay, rotation, memory (Python stdlib)
+    ui/                    console page (no build step)
+    tools.json             command catalogue (single source of truth)
+  extension/               Chrome/Edge MV3 extension
+    core/                  provider-agnostic agent loop, parser, transport
+    providers/             one adapter per AI website
+  editor/
+    godot-4.7.2/            Godot editor plugin (installs as addons/nonzeroscript)
+  tools/                   build + smoke test
+  assets/                  banner and icon
+```
+
+## Troubleshooting
+
+**The console says Godot 未连接.**
+Open the project in Godot and enable the plugin under *Project Settings → Plugins*. Check the dock's URL matches the controller (`http://127.0.0.1:8790` by default) and click **重新连接**.
+
+**The page bar says 中转未运行.**
+Start the controller. If it is running on another port, open the extension popup and set the same address there (and in the Godot dock).
+
+**Port 8790 is already in use.**
+Close the other controller, or start with `python3 main.py --port 8791` and update the extension popup + Godot dock. Only use `--host 0.0.0.0` for a deliberate remote demo — it exposes file editing to your LAN.
+
+**The AI answers in plain text instead of a command.**
+Send a reminder in the chat ("Use ONE NonZeroScript JSON command") or start a fresh session. On Arena keep **Direct** mode. Kimi and Gemini occasionally prefer their own tools; DeepSeek is the most consistent.
+
+**ChatGPT/Gemini/Kimi redesign broke the page bar.**
+Provider DOM changes are expected occasionally. The provider adapter is one file in `extension/providers/`; update its selectors. The console and the agent loop do not need changes.
+
+**A task ended by itself.**
+The protocol is one command per reply; a reply with no command means "finished or I need a decision". The console shows the final reply. Queue the next task to continue.
+
+**How do I delete the memory?**
+Stop the controller and delete `controller/data/memory/`. Settings and memory are local files; nothing is uploaded.
+
+## Support and credits
+
+NonZeroScript is free and open source (GPL-3.0). It is the **official Godot derivative of ZeroScript**, which remains the upstream project for Roblox Studio. Credit for the original idea, agent loop and providers goes to the ZeroScript authors; the Godot plugin, controller, rotation and timeline memory are new in this edition.
+
+- Original ZeroScript: [github.com/sebattfg/ZeroScript-Free](https://github.com/sebattfg/ZeroScript-Free)
+- This repository: [github.com/Moonano-MG/NonZeroScript](https://github.com/Moonano-MG/NonZeroScript)
+
+If you find a bug, open an issue with the console log (the **实时日志** panel) and the page's browser console output. Those two make provider DOM bugs much easier to fix.
+
+## License
+
+GPL-3.0-or-later. See [LICENSE](LICENSE). Provider adapters, the agent loop and the idea are derived from ZeroScript and remain under the same license.

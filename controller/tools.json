@@ -1,0 +1,274 @@
+{
+  "version": "0.1.0",
+  "editor": "godot-4.7.2",
+  "engine": "Godot 4.7.2",
+  "notes": [
+    "Paths use res:// (project) or user://. Absolute filesystem paths are rejected.",
+    "Send exactly ONE command per reply and wait for its result.",
+    "Scripts may be GDScript (.gd) or C# (.cs); the file extension picks the language.",
+    "For long scripts, put the path in JSON and the code in a ###GDSCRIPT### block (GDScript) or a ###CSHARP### block (C#)."
+  ],
+  "tools": [
+    {
+      "name": "list_tools",
+      "category": "read",
+      "description": "Return this command catalogue (names, parameters and descriptions). Use it when you are unsure which command or parameter exists.",
+      "params": {}
+    },
+    {
+      "name": "get_editor_state",
+      "category": "read",
+      "description": "Report the connected Godot editor: project name and path, engine version, open scene, selected nodes, whether a project is playing, and the scripting capabilities (csharp = .NET build, dotnet = a .csproj/.sln exists, language/default).",
+      "params": {}
+    },
+    {
+      "name": "list_files",
+      "category": "read",
+      "description": "List files and folders inside the project. Filter by extension and recurse into subfolders.",
+      "params": {
+        "path": { "type": "string", "description": "Folder to list. Default res://", "required": false },
+        "extensions": { "type": "string", "description": "Comma-separated extensions to keep, e.g. gd,tscn,godot", "required": false },
+        "recursive": { "type": "boolean", "description": "Walk subfolders (default false)", "required": false },
+        "max_files": { "type": "integer", "description": "Stop after this many entries (default 400)", "required": false }
+      }
+    },
+    {
+      "name": "read_file",
+      "category": "read",
+      "description": "Read a UTF-8 text file (scripts, scenes, project.godot, .tres). Returns numbered lines so you can target edits precisely.",
+      "params": {
+        "path": { "type": "string", "description": "res:// path of the file", "required": true },
+        "start_line": { "type": "integer", "description": "1-based first line (default 1)", "required": false },
+        "max_lines": { "type": "integer", "description": "Maximum lines to return (default 500, max 5000)", "required": false }
+      }
+    },
+    {
+      "name": "search_in_files",
+      "category": "read",
+      "description": "Search text or a regular expression across project text files. Returns path, line number and the matching line.",
+      "params": {
+        "query": { "type": "string", "description": "Text or regex to find", "required": true },
+        "path": { "type": "string", "description": "Folder to search. Default res://", "required": false },
+        "regex": { "type": "boolean", "description": "Treat query as a regular expression (default false)", "required": false },
+        "case_sensitive": { "type": "boolean", "description": "Default false", "required": false },
+        "include": { "type": "string", "description": "Comma-separated extensions to search, e.g. gd,cs,tscn,cfg", "required": false },
+        "max_results": { "type": "integer", "description": "Default 80", "required": false }
+      }
+    },
+    {
+      "name": "write_file",
+      "category": "edit",
+      "description": "Create or overwrite a text file (.gd, .cs, .tscn, ...). Creates missing folders, rescans the project and can open the file in the editor. For scripts, prefer the code block instead of escaping the code in JSON: ###GDSCRIPT### for GDScript, ###CSHARP### for C#.",
+      "params": {
+        "path": { "type": "string", "description": "res:// path to write", "required": true },
+        "content": { "type": "string", "description": "Full file content (omitted when a ###GDSCRIPT### or ###CSHARP### block follows)", "required": false },
+        "open_in_editor": { "type": "boolean", "description": "Open the file after writing (default false)", "required": false }
+      }
+    },
+    {
+      "name": "write_files",
+      "category": "edit",
+      "description": "Write several text files (.gd, .cs, .tscn, .tres, ...) in one command. Each item is {path, content}. Use for scaffolding a feature in one turn.",
+      "params": {
+        "files": { "type": "array", "description": "Array of {path, content} objects", "required": true },
+        "open_in_editor": { "type": "boolean", "description": "Open the first file after writing (default false)", "required": false }
+      }
+    },
+    {
+      "name": "edit_file",
+      "category": "edit",
+      "description": "Replace an exact piece of text in a file (literal search, not regex). Safer than rewriting a whole script. Fails if the search text is missing or ambiguous unless all=true.",
+      "params": {
+        "path": { "type": "string", "description": "res:// path", "required": true },
+        "search": { "type": "string", "description": "Exact text to find", "required": true },
+        "replace": { "type": "string", "description": "Replacement text", "required": true },
+        "all": { "type": "boolean", "description": "Replace every occurrence (default false = require exactly one)", "required": false }
+      }
+    },
+    {
+      "name": "create_dir",
+      "category": "edit",
+      "description": "Create a folder (and parents) inside the project.",
+      "params": {
+        "path": { "type": "string", "description": "res:// folder path", "required": true }
+      }
+    },
+    {
+      "name": "delete_path",
+      "category": "edit",
+      "description": "Delete a file or folder. Folders require recursive=true. Use with care.",
+      "params": {
+        "path": { "type": "string", "description": "res:// path", "required": true },
+        "recursive": { "type": "boolean", "description": "Delete a non-empty folder (default false)", "required": false }
+      }
+    },
+    {
+      "name": "rename_path",
+      "category": "edit",
+      "description": "Rename or move a file/folder inside the project.",
+      "params": {
+        "from": { "type": "string", "description": "Current res:// path", "required": true },
+        "to": { "type": "string", "description": "New res:// path", "required": true },
+        "overwrite": { "type": "boolean", "description": "Replace the destination if it exists (default false)", "required": false }
+      }
+    },
+    {
+      "name": "get_scene_tree",
+      "category": "scene",
+      "description": "Return the node tree of the currently edited scene as nested objects (name, type, scene-relative path, script).",
+      "params": {
+        "max_depth": { "type": "integer", "description": "Depth to walk (default 6)", "required": false },
+        "include_internal": { "type": "boolean", "description": "Include editor-internal nodes (default false)", "required": false }
+      }
+    },
+    {
+      "name": "get_node_info",
+      "category": "scene",
+      "description": "Inspect one node: type, script, groups, children and editor-visible properties.",
+      "params": {
+        "path": { "type": "string", "description": "Scene-relative node path, \".\" for the root", "required": true },
+        "include_properties": { "type": "boolean", "description": "Include property values (default true)", "required": false }
+      }
+    },
+    {
+      "name": "set_node_property",
+      "category": "scene",
+      "description": "Set one property on a node in the open scene (undoable). Strings such as \"Vector2(32, 32)\" are converted to the property's real type.",
+      "params": {
+        "path": { "type": "string", "description": "Scene-relative node path", "required": true },
+        "property": { "type": "string", "description": "Property path, e.g. position or modulate", "required": true },
+        "value": { "type": "variant", "description": "New value", "required": true }
+      }
+    },
+    {
+      "name": "add_node",
+      "category": "scene",
+      "description": "Add a new node of any engine type under a parent in the open scene (undoable), optionally with a GDScript or C# script attached.",
+      "params": {
+        "parent_path": { "type": "string", "description": "Scene-relative parent path, \".\" for root", "required": true },
+        "type": { "type": "string", "description": "Godot class, e.g. Sprite2D, Label, CharacterBody2D", "required": true },
+        "name": { "type": "string", "description": "Node name (default: the type)", "required": false },
+        "properties": { "type": "object", "description": "Optional property values to set", "required": false },
+        "script_path": { "type": "string", "description": "Optional .gd or .cs script to attach to the new node", "required": false }
+      }
+    },
+    {
+      "name": "attach_script",
+      "category": "scene",
+      "description": "Attach an existing GDScript (.gd) or C# (.cs) script to a node in the open scene, or detach it with script_path \"\" (undoable).",
+      "params": {
+        "path": { "type": "string", "description": "Scene-relative node path", "required": true },
+        "script_path": { "type": "string", "description": "res:// path of the .gd/.cs script; empty string detaches", "required": true }
+      }
+    },
+    {
+      "name": "remove_node",
+      "category": "scene",
+      "description": "Remove a node from the open scene (undoable). The scene root cannot be removed.",
+      "params": {
+        "path": { "type": "string", "description": "Scene-relative node path", "required": true }
+      }
+    },
+    {
+      "name": "select_nodes",
+      "category": "scene",
+      "description": "Select nodes in the editor so the human can see what you are working on.",
+      "params": {
+        "paths": { "type": "array", "description": "Array of scene-relative node paths", "required": true }
+      }
+    },
+    {
+      "name": "instantiate_scene",
+      "category": "scene",
+      "description": "Instance a .tscn file under a node in the open scene (undoable).",
+      "params": {
+        "scene_path": { "type": "string", "description": "res:// path of the packed scene", "required": true },
+        "parent_path": { "type": "string", "description": "Scene-relative parent path (default \".\")", "required": false },
+        "name": { "type": "string", "description": "Instance name (default: scene file name)", "required": false }
+      }
+    },
+    {
+      "name": "open_scene",
+      "category": "scene",
+      "description": "Open a .tscn scene in the editor.",
+      "params": {
+        "path": { "type": "string", "description": "res:// path of the scene", "required": true }
+      }
+    },
+    {
+      "name": "create_scene",
+      "category": "scene",
+      "description": "Create a new scene file with a root node and open it.",
+      "params": {
+        "path": { "type": "string", "description": "res:// path, e.g. res://scenes/main_menu.tscn", "required": true },
+        "root_type": { "type": "string", "description": "Root class (default Node2D)", "required": false },
+        "root_name": { "type": "string", "description": "Root node name (default Main)", "required": false },
+        "script_path": { "type": "string", "description": "Optional .gd or .cs script for the root node", "required": false }
+      }
+    },
+    {
+      "name": "save_scene",
+      "category": "scene",
+      "description": "Save the currently edited scene, optionally as a new path.",
+      "params": {
+        "path": { "type": "string", "description": "Optional new res:// path", "required": false }
+      }
+    },
+    {
+      "name": "get_project_settings",
+      "category": "project",
+      "description": "Read project settings (ProjectSettings). Filter by key prefix, e.g. application/ or input/.",
+      "params": {
+        "prefix": { "type": "string", "description": "Only keys starting with this prefix (default \"\")", "required": false },
+        "max_keys": { "type": "integer", "description": "Default 300", "required": false }
+      }
+    },
+    {
+      "name": "set_project_setting",
+      "category": "project",
+      "description": "Set and save one project setting in project.godot.",
+      "params": {
+        "key": { "type": "string", "description": "Setting name, e.g. application/config/name", "required": true },
+        "value": { "type": "variant", "description": "New value", "required": true }
+      }
+    },
+    {
+      "name": "run_project",
+      "category": "run",
+      "description": "Start play-testing: the main scene, the current scene, or a specific scene.",
+      "params": {
+        "mode": { "type": "string", "description": "main | current | scene (default main)", "required": false },
+        "scene_path": { "type": "string", "description": "Required when mode=scene", "required": false }
+      }
+    },
+    {
+      "name": "stop_project",
+      "category": "run",
+      "description": "Stop the running play-test.",
+      "params": {}
+    },
+    {
+      "name": "get_editor_log",
+      "category": "read",
+      "description": "Read the tail of the Godot editor log. Use after running the game to see runtime errors.",
+      "params": {
+        "lines": { "type": "integer", "description": "Number of lines (default 120, max 1000)", "required": false },
+        "errors_only": { "type": "boolean", "description": "Only lines with errors/warnings (default false)", "required": false }
+      }
+    },
+    {
+      "name": "scan_filesystem",
+      "category": "edit",
+      "description": "Ask the editor to rescan the project filesystem (needed after writing files outside the plugin, e.g. from git).",
+      "params": {}
+    },
+    {
+      "name": "capture_editor_viewport",
+      "category": "read",
+      "description": "Save a PNG screenshot of the editor viewport into the project so the human can see it.",
+      "params": {
+        "save_path": { "type": "string", "description": "Optional res:// png path", "required": false }
+      }
+    }
+  ]
+}

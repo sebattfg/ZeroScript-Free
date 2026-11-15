@@ -1,0 +1,33 @@
+NonZeroScript
+=============
+
+NonZeroScript is the official Godot edition of ZeroScript, distributed under
+the GNU General Public License v3.0 or later (see LICENSE).
+
+Upstream project
+----------------
+ZeroScript — Free AI Agent for Roblox Studio
+https://github.com/sebattfg/ZeroScript-Free
+https://zerodev.tools/zeroscript
+
+The original ZeroScript is licensed under GPL-3.0. Its agent-loop design,
+command protocol, browser-extension architecture and the per-site AI adapters
+were used as the starting point for this edition. The Godot editor plugin, the
+visual controller (console + relay), multi-browser rotation and the timeline
+memory system are new work in NonZeroScript and are released under the same
+license.
+
+This edition contains no Roblox Studio integration, Roblox MCP bridge, Luau
+runtime or Roblox-specific documentation.
+
+Trademarks
+----------
+Godot is a trademark of the Godot Engine contributors. ChatGPT, DeepSeek,
+Gemini, Kimi, GLM, Qwen, Meta AI and Arena are trademarks of their respective
+owners. This project is not affiliated with or endorsed by any of them.
+
+Third-party code
+----------------
+The controller uses only the Python standard library. The browser extension
+uses only browser APIs. No third-party JavaScript or Python packages are
+bundled.
