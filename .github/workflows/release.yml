@@ -1,0 +1,80 @@
+name: Release
+
+# Builds the download packages and attaches them to a GitHub Release.
+#
+# Normal flow:
+#   git tag v0.2.0 && git push origin v0.2.0
+# The tag must match version.txt, otherwise the build stops (--check).
+#
+# You can also run it by hand: Actions -> Release -> Run workflow.
+# The packages are uploaded as a workflow artifact in that case.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check versions and prompt docs
+        run: python .github/build.py --check
+
+      - name: Tag matches version.txt
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          file="$(cat version.txt)"
+          if [ "$tag" != "$file" ]; then
+            echo "::error::tag v$tag does not match version.txt ($file)"
+            exit 1
+          fi
+
+      - name: Build controller.zip / extension.zip / editor-*.zip / NonZeroScript-<version>.zip
+        run: python .github/build.py
+
+      - name: Show what was built
+        run: |
+          ls -lh dist
+          cat dist/SHA256SUMS.txt
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NonZeroScript-packages
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.zip dist/SHA256SUMS.txt --clobber
+          else
+            gh release create "$tag" dist/*.zip dist/SHA256SUMS.txt \
+              --title "NonZeroScript ${tag#v}" \
+              --generate-notes
+          fi
+          echo "### $tag" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat dist/SHA256SUMS.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,50 @@
+name: Check
+
+# Runs on every push and pull request: nothing is published here, it only
+# proves the tree is consistent before a Release is cut.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Versions, prompts, syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Same version in all 7 places + prompt catalogue matches tools.json
+        run: python .github/build.py --check
+
+      - name: Python sources compile
+        run: python -m compileall -q controller .github
+
+      - name: JavaScript syntax
+        run: |
+          fail=0
+          for f in extension/*.js extension/core/*.js extension/providers/*.js controller/ui/app.js; do
+            node --check "$f" || fail=1
+          done
+          exit $fail
+
+      - name: GDScript parses
+        run: |
+          python -m pip install --quiet gdtoolkit
+          gdparse editor/godot-4.7.2/plugin.gd \
+                  editor/godot-4.7.2/core/bridge.gd \
+                  editor/godot-4.7.2/core/commands.gd
+
+      - name: Packages can be built
+        run: python .github/build.py --out /tmp/nonzeroscript-dist

@@ -64,7 +64,7 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 
 ## Download and install
 
-Everything you need is in **[`dist/NonZeroScript-0.2.0.zip`](dist)** — one archive with the controller, the browser extension and the Godot plugin. Extract it, then follow the three steps below. (The same folders are also in this repository if you prefer to browse them.)
+Everything you need is one archive: download **`NonZeroScript-0.2.0.zip`** from [Releases](../../releases) — or straight from [`dist/`](dist) — and extract it. It contains the controller, the browser extension and the Godot plugin; then follow the three steps below.
 
 > **Platforms:** Windows 10/11 and macOS, 64-bit and 32-bit. **Linux is not supported** — no Linux launcher, no Linux package, no Linux instructions.
 
