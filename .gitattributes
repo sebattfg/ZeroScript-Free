@@ -9,4 +9,7 @@
 
 # Godot sources and plugin metadata.
 *.gd       text eol=lf
+*.cs       text eol=lf
+*.csproj   text eol=lf
+*.sln      text eol=lf
 *.cfg      text eol=lf

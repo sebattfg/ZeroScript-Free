@@ -42,6 +42,8 @@
     editorConnected: null,
     editorProject: "",
     editorWrite: true,
+    editorCSharp: null,
+    editorDotnet: null,
     settings: { min_delay: 2, max_delay: 6, max_turns: 60 },
     tools: [],
     sessionState: "registered", // registered | starting | ready | busy | stopped
@@ -210,7 +212,9 @@
       const delay = `${fmtSec(settings.min_delay)}-${fmtSec(settings.max_delay)}s`;
       const provider = P.displayName || P.id;
       const extraBase = `${state.browser} · ${provider} · 延迟 ${delay}`;
-      const editor = state.editorConnected ? "Godot 已连接" : "Godot 未连接";
+      const editor = state.editorConnected
+        ? `Godot 已连接 · ${state.editorCSharp ? "GDScript + C#" : "GDScript"}`
+        : "Godot 未连接";
       setBusyVisual(state.busy || state.starting);
 
       if (state.controllerOnline === false) {
@@ -305,6 +309,8 @@
       state.editorConnected = r.editor ? !!r.editor.connected : null;
       state.editorProject = r.editor ? r.editor.project || "" : "";
       state.editorWrite = r.editor && r.editor.write_enabled === false ? false : true;
+      state.editorCSharp = r.editor && r.editor.csharp != null ? !!r.editor.csharp : null;
+      state.editorDotnet = r.editor && r.editor.dotnet != null ? !!r.editor.dotnet : null;
       if (r.settings) state.settings = r.settings;
       if (Array.isArray(r.tools)) state.tools = r.tools;
       state.lastError = "";
@@ -372,6 +378,8 @@
     state.editorConnected = r.editor ? !!r.editor.connected : state.editorConnected;
     state.editorProject = r.editor ? r.editor.project || state.editorProject : state.editorProject;
     if (r.editor && r.editor.write_enabled != null) state.editorWrite = r.editor.write_enabled !== false;
+    if (r.editor && r.editor.csharp != null) state.editorCSharp = !!r.editor.csharp;
+    if (r.editor && r.editor.dotnet != null) state.editorDotnet = !!r.editor.dotnet;
     if (r.settings) state.settings = r.settings;
     ZSNet.badge(true, "");
     if (r.stop) {
@@ -435,6 +443,8 @@
           project: state.editorProject,
           engine: "Godot 4.7.2",
           write_enabled: state.editorWrite,
+          csharp: !!state.editorCSharp,
+          dotnet: !!state.editorDotnet,
         },
         providerNotes: P.promptExtra || "",
         customPrompt: state.settings.custom_prompt || "",
@@ -588,6 +598,14 @@
             command = { command: salvaged.tool, params: salvaged.arguments || {} };
             parseError = null;
           }
+        }
+      }
+
+      if (command) {
+        const mismatch = ZSParse.codeLanguageWarning(command, res.text);
+        if (mismatch) {
+          log("language mismatch", mismatch);
+          ui.toast(mismatch, 9000, "warn");
         }
       }
 

@@ -17,7 +17,7 @@ manifest.json         MV3 manifest (8 providers, localhost permissions)
 background.js         service worker: controller URL, browser id, all HTTP
 popup.html/js         status + controller address
 core/config.js        system prompt, feedback text, tool catalogue formatting
-core/parser.js        command parser (JSON envelope + ###GDSCRIPT### blocks)
+core/parser.js        command parser (JSON envelope + ###GDSCRIPT###/###CSHARP### blocks)
 core/net.js           content-script -> background transport
 core/main.js          provider-agnostic agent loop + in-page bar
 providers/*.js        one adapter per AI website (DOM only)

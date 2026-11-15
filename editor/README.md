@@ -10,7 +10,7 @@ editor/
     plugin.cfg
     plugin.gd           EditorPlugin entry point
     core/bridge.gd      HTTP poller to the controller
-    core/commands.gd    28 file/scene/project commands
+    core/commands.gd    29 file/scene/project/script commands
     ui/dock.gd          status dock (connection, URL, write toggle, log)
     build.json          artifact name + install target
 ```
@@ -36,6 +36,33 @@ running at the URL in the box (`http://127.0.0.1:8790` by default) and the
 project is open. **允许 AI 写入 / 修改场景** can be unchecked to make the plugin
 read-only; the setting is stored in `user://nonzeroscript_editor.cfg`.
 
+## GDScript and C#
+
+Scripts can be `.gd` or `.cs`. The file extension decides the language; the
+plugin never rewrites one into the other.
+
+- `write_file` / `write_files` write `.cs` exactly like `.gd`, and `edit_file`
+  patches either one.
+- `attach_script {path, script_path}` — plus the `script_path` parameter of
+  `add_node` and `create_scene` — loads the script and sets it on the node
+  through `EditorUndoRedoManager`, so Ctrl+Z undoes the attachment.
+- `get_editor_state` reports `csharp` (the running Godot binary has .NET
+  support), `dotnet` (a `.sln`/`.csproj` exists in the project) and
+  `script_extensions` (`["gd", "cs"]`). The browser AI reads these before it
+  picks a language.
+- `search_in_files` searches `cs` by default, and `run_project` adds a build
+  note (or a warning when a project has `.cs` files but the editor cannot
+  compile them).
+- C# needs the **.NET build** of Godot 4.7.2. On the standard build a `.cs`
+  file is still written but the result carries a `warning`, and `attach_script`
+  refuses to load it with an explicit error instead of failing silently.
+- A `.cs` write into a project without a `.csproj`/`.sln` also returns a
+  `warning` pointing at **Project → Tools → C# → Create C# solution**, so the
+  file is not silently dead.
+- Godot compiles C# itself; the plugin never shells out to `dotnet`. If scripts
+  are missing at play time, run **Build** in the MSBuild panel — the
+  `run_project` result says so too.
+
 ## Design
 
 - **Outbound polling only.** The plugin POSTs `/api/editor/poll` every ~0.4 s.
@@ -50,6 +77,9 @@ read-only; the setting is stored in `user://nonzeroscript_editor.cfg`.
 - **Path safety.** Only `res://` and `user://`; absolute paths and `..` escapes
   are rejected. `.git`, `.godot`, `res://addons/nonzeroscript` and
   `project.godot` are protected from generic writes/deletes.
+- **Language-agnostic file ops.** `.gd` and `.cs` travel through the same
+  write/edit/attach path; only `attach_script` and `get_editor_state` care about
+  the language, and they ask Godot rather than guessing.
 - **Results are compact.** The controller truncates long results before they go
   back to the AI; the plugin caps reads at 4 MB and 5000 lines by default.
 

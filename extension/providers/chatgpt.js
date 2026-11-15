@@ -842,11 +842,11 @@ const ZSProvider = (() => {
   // catches a stray inline one). React re-creates these nodes on every token, so
   // - like Gemini - we also mark the .markdown container with .zs-cmd-mask; the
   // overlay.css rule keeps every recreated <pre> hidden with no flash.
-  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd)|###mcp_tool###/i;
+  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd|csharp|cs)|###mcp_tool###/i;
   // Marker pair, for the UNFENCED case below. Kept separate from CMD_SHAPE so the
   // opener test can't also match the closer.
-  const CMD_OPEN = /###\s*(?:LUA|GDSCRIPT|GD|MCP_TOOL)\s*###/i;
-  const CMD_CLOSE = /###\s*END_(?:LUA|GDSCRIPT|GD|MCP_TOOL)\s*###/i;
+  const CMD_OPEN = /###\s*(?:LUA|GDSCRIPT|GD|CSHARP|CS|MCP_TOOL)\s*###/i;
+  const CMD_CLOSE = /###\s*END_(?:LUA|GDSCRIPT|GD|CSHARP|CS|MCP_TOOL)\s*###/i;
 
   function findToolBlockSpot(item /*, chip */) {
     const replies = [...item.querySelectorAll(S.reply)];

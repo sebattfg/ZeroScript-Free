@@ -125,6 +125,8 @@ class Editor:
     open_scene: str = ""
     playing: bool = False
     write_enabled: bool = True
+    csharp: bool = False
+    dotnet: bool = False
     version: str = ""
     last_seen: float = 0.0
     connected: bool = False
@@ -728,6 +730,8 @@ class Hub:
             ed.open_scene = str(p.get("openScene") or "")
             ed.playing = bool(p.get("playing"))
             ed.write_enabled = bool(p.get("writeEnabled", True))
+            ed.csharp = bool(p.get("csharp", ed.csharp))
+            ed.dotnet = bool(p.get("dotnet", ed.dotnet))
             ed.version = str(p.get("version") or ed.version)
             ed.last_seen = now()
             ed.connected = True
@@ -770,6 +774,8 @@ class Hub:
             "open_scene": ed.open_scene,
             "playing": ed.playing,
             "write_enabled": ed.write_enabled,
+            "csharp": ed.csharp,
+            "dotnet": ed.dotnet,
             "version": ed.version,
             "queue": len(ed.queue),
             "last_seen": iso(ed.last_seen) if ed.last_seen else None,

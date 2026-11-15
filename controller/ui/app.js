@@ -196,6 +196,9 @@
       ["引擎", esc(ed.engine || "Godot 4.7.2")],
       ["当前场景", esc(ed.open_scene || "—")],
       ["播放中", ed.playing ? "是" : "否"],
+      ["脚本语言", ed.connected
+        ? (ed.csharp ? `<span class="v ok">GDScript + C#</span>` : "GDScript（无 C#）")
+        : "—"],
       ["允许写入", ed.write_enabled ? "是" : "否"],
       ["待执行", esc(ed.queue != null ? ed.queue : 0)],
     ];

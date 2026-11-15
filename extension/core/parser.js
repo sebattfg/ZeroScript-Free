@@ -5,12 +5,20 @@
 //
 //   {"command": "read_file", "params": {"path": "res://player.gd"}}
 //
-// or, for long GDScript, a JSON envelope plus a code block:
+// or, for a long script, a JSON envelope plus a code block whose language
+// matches the file extension - GDScript:
 //
 //   {"command": "write_file", "params": {"path": "res://player.gd"}}
 //   ###GDSCRIPT###
 //   extends CharacterBody2D
 //   ###END_GDSCRIPT###
+//
+// or C#:
+//
+//   {"command": "write_file", "params": {"path": "res://Player.cs"}}
+//   ###CSHARP###
+//   using Godot;
+//   ###END_CSHARP###
 //
 // The markers are deliberately explicit: chat sites render fenced code blocks
 // into DOM without the backticks, so ` ```gdscript ` is not reliable after the
@@ -25,9 +33,12 @@ const ZSParse = (() => {
   const START_M = "###MCP_TOOL###";
   const END_M = "###END_MCP_TOOL###";
 
-  // GDScript (plus legacy LUA aliases, so an old-habit model still parses).
-  const LUA_START_RE = /###\s*(?:gdscript|gds|gd|lua)\s*(?:###|---)/i;
-  const LUA_END_RE = /###\s*end[_\- ]?(?:gdscript|gds|gd|lua)\s*###/i;
+  // Code blocks carry their language. GDScript keeps the legacy LUA aliases so
+  // an old-habit model still parses; C# is a first-class alternative.
+  //   ###GDSCRIPT### ... ###END_GDSCRIPT###   (.gd)
+  //   ###CSHARP###   ... ###END_CSHARP###     (.cs, also ###C# ###)
+  const LUA_START_RE = /###\s*(?:gdscript|gds|gd|csharp|c#|cs|dotnet|lua)\s*(?:###|---)/i;
+  const LUA_END_RE = /###\s*end[_\- ]?(?:gdscript|gds|gd|csharp|c#|cs|dotnet|lua)\s*###/i;
   const LUA_DEFAULT_DM = "Edit"; // kept for provider compatibility
 
   const CMD_KEY_RE = /"(?:command|tool)"\s*:\s*"/;
@@ -48,7 +59,7 @@ const ZSParse = (() => {
 
   // Strip a code-block UI label that some sites bleed into text ("Copy", "gd").
   function stripCodeChrome(code) {
-    return String(code || "").replace(/^(?:json|copy|gdscript|gd)\s+/i, "");
+    return String(code || "").replace(/^(?:json|copy|gdscript|gd|csharp|cs|c#)\s+/i, "");
   }
 
   function matchBrace(text, start) {
@@ -152,6 +163,8 @@ const ZSParse = (() => {
     remove: "remove_node", delete_node: "remove_node",
     set_property: "set_node_property", set_node_prop: "set_node_property",
     instantiate: "instantiate_scene", open: "open_scene", save: "save_scene",
+    attach: "attach_script", set_script: "attach_script", add_script: "attach_script",
+    attach_script_to_node: "attach_script",
     run: "run_project", play: "run_project", stop: "stop_project",
     settings: "get_project_settings", set_setting: "set_project_setting",
     set_project_settings: "set_project_setting",
@@ -194,6 +207,41 @@ const ZSParse = (() => {
     }
     if (!args || typeof args !== "object" || Array.isArray(args)) args = {};
     return { tool: name, arguments: args };
+  }
+
+  // Which language the reply's code block is written in: "gd", "cs" or null.
+  // The extension uses this to warn when a block and its path disagree.
+  function codeLanguage(text) {
+    const m = String(text || "").match(/###\s*(gdscript|gds|gd|csharp|c#|cs|dotnet|lua)\s*(?:###|---)/i);
+    if (!m) return null;
+    const tag = m[1].toLowerCase();
+    if (tag === "csharp" || tag === "c#" || tag === "cs" || tag === "dotnet") return "cs";
+    return "gd";
+  }
+
+  // Empty string when the block language matches every path, otherwise a
+  // human-readable warning. Language is decided by the extension, so a
+  // ###CSHARP### block aimed at res://x.gd would silently produce a broken file.
+  function codeLanguageWarning(command, text) {
+    const lang = codeLanguage(text);
+    if (!lang || !command) return "";
+    if (!/^(write_file|write_files|edit_file)$/.test(String(command.command || command.tool || ""))) return "";
+    const params = command.params || command.arguments || {};
+    const paths = [];
+    if (typeof params.path === "string") paths.push(params.path);
+    if (Array.isArray(params.files)) {
+      for (const f of params.files) if (f && typeof f.path === "string") paths.push(f.path);
+    }
+    for (const p of paths) {
+      const ext = String(p).toLowerCase().split(".").pop();
+      if (lang === "cs" && ext === "gd") {
+        return `代码块是 C#（###CSHARP###），但路径是 .gd：${p}。语言由扩展名决定，请改用 .cs 或把它改写成 GDScript。`;
+      }
+      if (lang === "gd" && ext === "cs") {
+        return `代码块是 GDScript（###GDSCRIPT###），但路径是 .cs：${p}。请改用 .gd 或把它改写成 C#。`;
+      }
+    }
+    return "";
   }
 
   // All code blocks in the text: [{start, end, code, closed}]
@@ -475,5 +523,6 @@ const ZSParse = (() => {
     findLuaStart, findLuaEnd, matchBrace, extractJson, normalizeCall, normalizeToolName,
     hasToolSignature: hasCommandShape, hasOpenToolBlock, parseToolCalls, salvageCutOff,
     toolNameFromText, hasCommandShape, diagnose, codeBlocks, cleanCodeCall,
+    codeLanguage, codeLanguageWarning,
   };
 })();

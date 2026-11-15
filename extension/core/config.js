@@ -22,7 +22,7 @@ const ZS = (() => {
       return "read";
     if (/^(write_file|write_files|edit_file|create_dir|delete_path|rename_path|scan_filesystem)$/.test(n))
       return "edit";
-    if (/^(add_node|remove_node|set_node_property|select_nodes|instantiate_scene|open_scene|create_scene|save_scene)$/.test(n))
+    if (/^(add_node|remove_node|set_node_property|attach_script|select_nodes|instantiate_scene|open_scene|create_scene|save_scene)$/.test(n))
       return "scene";
     if (/^(run_project|stop_project)$/.test(n)) return "run";
     return "tool";
@@ -34,7 +34,7 @@ const ZS = (() => {
       const known = toolName && !["command", "unknown"].includes(toolName);
       const codeHint = known
         ? ""
-        : " For a long GDScript file put the path in JSON and the code in a ###GDSCRIPT### ... ###END_GDSCRIPT### block.";
+        : " For a long script put the path in JSON and the code in a ###GDSCRIPT### ... ###END_GDSCRIPT### block (GDScript) or a ###CSHARP### ... ###END_CSHARP### block (C#).";
       const notes = {
         malformed:
           "ERROR: a NonZeroScript command was detected in your reply, but its JSON could not be parsed, " +
@@ -45,8 +45,8 @@ const ZS = (() => {
           'Rewrite the WHOLE command as one valid JSON object, exactly like {"command": "name", "params": { ... }}.' +
           codeHint + " Please retry.",
         unclosedCode:
-          "ERROR: your ###GDSCRIPT### block was never closed, so the code was not written. " +
-          "End the code with ###END_GDSCRIPT### and retry.",
+          "ERROR: your code block was never closed, so the code was not written. " +
+          "End it with ###END_GDSCRIPT### (GDScript) or ###END_CSHARP### (C#) and retry.",
         envelope:
           "ERROR: you wrote parameters as a bare JSON object without the command envelope, so nothing ran. " +
           'Wrap them like {"command": "name", "params": { ... }} - the keys go INSIDE "params". Please retry.',
@@ -118,6 +118,8 @@ const ZS = (() => {
       `- Open scene: ${ed.open_scene || "(none)"}`,
       `- Editor connected: ${ed.connected === false ? "no" : "yes"}`,
       `- Writing enabled: ${ed.write_enabled === false ? "no (ask the human to enable it in the plugin dock)" : "yes"}`,
+      `- C# available: ${ed.csharp ? "yes (Godot .NET build)" : "no (standard build - GDScript only)"}`,
+      `- .NET project: ${ed.dotnet ? "yes (.csproj found)" : "no"}`,
     ].join("\n");
 
     const providerNote = opts.providerNotes ? `\n## Notes for ${siteName}\n${opts.providerNotes}\n` : "";
@@ -132,7 +134,7 @@ const ZS = (() => {
 
       `## The one rule\n` +
       `Every reply must be exactly ONE of these two things:\n` +
-      `1. **One command** - a single JSON object, optionally followed by a ###GDSCRIPT### code block.\n` +
+      `1. **One command** - a single JSON object, optionally followed by a ###GDSCRIPT### or ###CSHARP### code block.\n` +
       `2. **A finish** - plain text with NO command, either because the task is complete or because you ` +
       `genuinely need a decision from the human. This ends the run and returns control to them.\n\n` +
       `Never write two commands in one reply. Never invent a result. Never claim a change you did not ` +
@@ -143,14 +145,30 @@ const ZS = (() => {
       `A short sentence of narration before the command is allowed. The JSON must be plain text in the ` +
       `reply (a fenced json block is fine). Keys other than "command"/"params" are not recognised.\n\n` +
 
-      `## Writing GDScript\n` +
-      `Do NOT escape a whole script into JSON. Put the path in JSON and the code in a block:\n\n` +
-      BT + `\n{"command": "write_file", "params": {"path": "res://scripts/player.gd"}}\n` +
+      `## Languages: GDScript and C#\n` +
+      `This project can use **GDScript** (.gd) or **C#** (.cs). The file extension decides the language.\n` +
+      `- Use GDScript by default. Use C# only when the Environment says \`C# available: yes\` AND the ` +
+      `project is a .NET project (or the human explicitly asks for C#).\n` +
+      `- Never put C# in a .gd file or GDScript in a .cs file, and never mix the two languages in one script.\n` +
+      `- C# scripts use \`using Godot;\`, \`public partial class Name : Node\` and \`public override void _Ready()\`. ` +
+      `The class name must match the file name (Player.cs -> class Player).\n` +
+      `- Attach a script to a node with attach_script {path, script_path}, or pass script_path to add_node. ` +
+      `This works for .gd and .cs.\n` +
+      `- C# is compiled by Godot's .NET build. If the project is not a .NET project, do not create .cs files ` +
+      `unless the human asks; keep C# code small and valid and re-read the file after editing.\n\n` +
+
+      `## Writing code\n` +
+      `Do NOT escape a whole script into JSON. Put the path in JSON and the code in a language block.\n\n` +
+      `GDScript:\n` + BT + `\n{"command": "write_file", "params": {"path": "res://scripts/player.gd"}}\n` +
       `###GDSCRIPT###\nextends CharacterBody2D\n\n@export var speed: float = 300.0\n\n` +
       `func _physics_process(delta: float) -> void:\n\t# ...\n\tpass\n###END_GDSCRIPT###\n` + BT + `\n\n` +
-      `The plugin writes the block to the path exactly as written. For small changes use ` +
-      `edit_file(path, search, replace) - literal search, no regex. ` +
-      `Never use ###LUA### blocks: this is Godot, not Roblox.\n\n` +
+      `C#:\n` + BT + `\n{"command": "write_file", "params": {"path": "res://scripts/Player.cs"}}\n` +
+      `###CSHARP###\nusing Godot;\n\npublic partial class Player : CharacterBody2D\n{\n` +
+      `    [Export] public float Speed { get; set; } = 300.0f;\n\n` +
+      `    public override void _PhysicsProcess(double delta)\n    {\n        // ...\n    }\n}\n###END_CSHARP###\n` + BT + `\n\n` +
+      `The plugin writes the block to the path exactly as written; the block language must match the extension. ` +
+      `For small changes use edit_file(path, search, replace) - literal search, no regex. ` +
+      `Never send a bare ###LUA### block: use ###GDSCRIPT### or ###CSHARP###.\n\n` +
 
       `## How to work\n` +
       `- Start with get_editor_state, then inspect (list_files / read_file / get_scene_tree) before editing.\n` +
@@ -160,7 +178,8 @@ const ZS = (() => {
       `- After run_project, wait for a human turn before reading get_editor_log; play-testing is interactive.\n` +
       `- If a result starts with ERROR, fix the call and retry, or explain the blocker in one sentence and ` +
       `finish. Do not repeat the same failing call.\n` +
-      `- Keep the project runnable: typed GDScript, Godot 4.x APIs, no invented engine methods.\n\n` +
+      `- Keep the project runnable: typed GDScript or valid C#, Godot 4.x APIs, no invented engine methods.\n` +
+      `- Check get_editor_state before choosing a language; it reports csharp and dotnet.\n\n` +
 
       `## Multi-browser rotation\n` +
       `This task can rotate between several AI browser tabs (same or different provider). A memory brief ` +

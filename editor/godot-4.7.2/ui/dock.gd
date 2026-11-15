@@ -140,6 +140,7 @@ func on_status(info: Dictionary) -> void:
 			parts.append("v" + ver)
 		parts.append("待执行 %d" % queue)
 		parts.append("写入 " + ("开" if bool(info.get("write_enabled", true)) else "关"))
+		parts.append("C# 可用" if bool(info.get("csharp", false)) else "仅 GDScript")
 		_detail.text = " · ".join(parts)
 	else:
 		_status.text = "● 未连接"

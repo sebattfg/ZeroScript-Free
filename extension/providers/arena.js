@@ -825,7 +825,7 @@ const ZSProvider = (() => {
   // on the next send (wiping per-element .zs-tool-hide), so also mark the turn
   // (its identity survives - the chip is anchored at item level) with
   // .zs-cmd-mask; the overlay.css rule keeps recreated code wrappers hidden.
-  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd)|###mcp_tool###/i;
+  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd|csharp|cs)|###mcp_tool###/i;
   function findToolBlockSpot(item /*, chip */) {
     const md = proseOf(item);
     if (!md) return null;

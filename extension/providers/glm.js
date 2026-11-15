@@ -523,7 +523,7 @@ const ZSProvider = (() => {
   // command shape AND mark the reply root (`.chat-assistant`, which keeps its
   // identity) with .zs-cmd-mask so a CSS rule re-hides recreated wrappers with
   // zero flash. Also catch a stray bare inline command paragraph.
-  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd)|###mcp_tool###/i;
+  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd|csharp|cs)|###mcp_tool###/i;
   function findToolBlockSpot(item /*, chip */) {
     if (!item) return null;
     let hidAny = null;

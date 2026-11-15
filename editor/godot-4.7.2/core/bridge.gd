@@ -200,7 +200,22 @@ func _status_body() -> Dictionary:
 		"openScene": _open_scene_path(),
 		"playing": _is_playing(),
 		"writeEnabled": bool(commands.allow_write) if commands != null else true,
+		"csharp": _editor_supports_csharp(),
+		"dotnet": _editor_is_dotnet(),
 	}
+
+
+# Feature-detected so an out-of-date commands.gd never breaks the poll loop.
+func _editor_supports_csharp() -> bool:
+	if commands == null or not commands.has_method("_csharp_available"):
+		return false
+	return bool(commands._csharp_available())
+
+
+func _editor_is_dotnet() -> bool:
+	if commands == null or not commands.has_method("_dotnet_project"):
+		return false
+	return bool(commands._dotnet_project())
 
 
 func _open_scene_path() -> String:
@@ -226,15 +241,16 @@ func _emit_status(data: Variant) -> void:
 		"controller_version": "",
 		"last_error": _last_error,
 		"write_enabled": bool(commands.allow_write) if commands != null else true,
+		"csharp": _editor_supports_csharp(),
 	}
 	if typeof(data) == TYPE_DICTIONARY:
 		var d: Dictionary = data
 		if d.has("controller") and typeof(d["controller"]) == TYPE_DICTIONARY:
 			info["controller_version"] = str(d["controller"].get("version", ""))
 		info["queue"] = int(d.get("queue", 0))
-	var sig := "%s|%s|%s|%s|%s|%s" % [
+	var sig := "%s|%s|%s|%s|%s|%s|%s" % [
 		info["connected"], info["project"], info["queue"],
-		info["controller_version"], info["write_enabled"], info["last_error"],
+		info["controller_version"], info["write_enabled"], info["csharp"], info["last_error"],
 	]
 	if sig == _last_status_sig:
 		return

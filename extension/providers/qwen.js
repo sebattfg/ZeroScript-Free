@@ -803,7 +803,7 @@ const ZSProvider = (() => {
   // markdown subtree on stream updates, so mark the assistant turn with
   // .zs-cmd-mask and let the CSS rule (overlay.css) re-hide recreated pre
   // elements with no flash.
-  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd)|###mcp_tool###/i;
+  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd|csharp|cs)|###mcp_tool###/i;
   function findToolBlockSpot(item) {
     const bd = bodyEl(item);
     if (!bd) return null;

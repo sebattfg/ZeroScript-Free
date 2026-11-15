@@ -78,6 +78,8 @@ class FakeEditor(threading.Thread):
                         "openScene": "res://main.tscn",
                         "playing": False,
                         "writeEnabled": True,
+                        "csharp": True,
+                        "dotnet": True,
                     },
                     timeout=10,
                 )
@@ -237,8 +239,19 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(0.2)
         if connected:
             print("  [ok] editor connected")
+            if st.get("editor", {}).get("csharp") is True:
+                print("  [ok] editor reports C# support (csharp/dotnet pass through)")
+            else:
+                failures.append(f"editor csharp not exposed: {st.get('editor')}")
         else:
             failures.append("fake editor never showed up as connected")
+
+        tools = (api.call("/api/tools", {}, timeout=5).get("tools") or [])
+        names = {t.get("name") for t in tools}
+        if {"attach_script", "write_file", "get_editor_state"} <= names:
+            print(f"  [ok] catalogue has {len(names)} tools incl. attach_script")
+        else:
+            failures.append(f"attach_script missing from the catalogue: {sorted(names)}")
 
         a = FakeSession(api, "smoke-a", "Chrome", "deepseek", "command")
         b = FakeSession(api, "smoke-b", "Edge", "chatgpt", "finish")

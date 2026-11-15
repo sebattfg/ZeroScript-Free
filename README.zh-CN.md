@@ -7,7 +7,7 @@
 
 ![NonZeroScript banner](assets/banner.svg)
 
-**NonZeroScript** 是 **[ZeroScript](https://github.com/sebattfg/ZeroScript-Free) 的官方衍生版**，把原本面向 Roblox Studio 的 ZeroScript 重做成了 **Godot 4.7.2** 版本。它让 ChatGPT、DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena 变成真正的 Godot 编辑器智能体：读写 GDScript、创建场景和节点、修改项目设置、运行游戏、读取报错——全部在普通的 AI 聊天页面里完成，**不需要 API Key，也不需要命令行**。
+**NonZeroScript** 是 **[ZeroScript](https://github.com/sebattfg/ZeroScript-Free) 的官方衍生版**，把原本面向 Roblox Studio 的 ZeroScript 重做成了 **Godot 4.7.2** 版本。它让 ChatGPT、DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena 变成真正的 Godot 编辑器智能体：读写 **GDScript 或 C#**、创建场景和节点、修改项目设置、运行游戏、读取报错——全部在普通的 AI 聊天页面里完成，**不需要 API Key，也不需要命令行**。
 
 > **官方衍生版说明**：NonZeroScript 并不是第三方魔改，而是 ZeroScript 官方针对 Godot 的衍生版本，与上游项目同步维护。本版本**不包含** Roblox Studio 集成、Roblox MCP 中转和 Roblox 专用说明；其余部分（浏览器插件的智能体循环、命令协议、永久免费承诺）都来自 ZeroScript，并继续使用 GPL-3.0 许可。
 
@@ -54,7 +54,7 @@
 - **随机输入等待时间。** 可设置最小和最大秒数（例如 2–6 秒）。**每一次**模拟输入（启动提示、任务、命令结果）之前都会在该区间随机抽取一个时间等待，并在页面状态栏显示倒计时。
 - **多浏览器 AI 轮换。** 打开 3 个浏览器（或 3 个标签页），分别在页面点“启动”，之后每次 AI 调用都会轮流使用下一个就绪会话。也可以在新建任务时指定只用某一家 AI。
 - **时间线记忆。** 每个浏览器里的 AI 记忆是独立的，轮换本会丢上下文。中转会把每次提示、回答、工具结果写入 `controller/data/memory/`，并在下一回合前给接手的浏览器附上一段**记忆摘要**。
-- **真正可用的 Godot 工具集。** 28 个命令：读写/搜索/编辑文件，查看和修改当前场景、增删节点、实例化场景、修改项目设置、运行/停止游戏、读取编辑器日志、保存截图给人类看。
+- **真正可用的 Godot 工具集。** 29 个命令（GDScript 与 C#）：读写/搜索/编辑文件，查看和修改当前场景、增删节点、实例化场景、修改项目设置、运行/停止游戏、读取编辑器日志、保存截图给人类看。
 - **ChatGPT 支持已更新**，同时支持 DeepSeek、Gemini、Kimi、GLM、Qwen、Meta AI、Arena。
 - **完全免费开源**：GPL-3.0，无账号、无订阅、无 API Key。
 
@@ -119,6 +119,7 @@
 
 - *“读取 `project.godot` 和场景树，然后添加一个 CharacterBody2D `Player`，WASD 移动，带摄像机；脚本保存到 `res://scripts/player.gd`。”*
 - *“找出所有 GDScript 里的 `print(`，换成 `Logger.info()`，并添加 Logger 自动加载。”*
+- *“这是 .NET 项目：新建 `res://scripts/Player.cs`，CharacterBody2D + WASD 移动，挂到 Player 节点后保存。”*
 - *“做一个暂停菜单（CanvasLayer），包含继续 / 重开 / 退出，绑定到 `ui_cancel`。”*
 - *“运行项目，然后读编辑器日志，修复前三个脚本错误。”*
 - *“把窗口大小改成 1280×720，拉伸模式改为 `canvas_items`，修改默认清屏颜色。”*
@@ -201,10 +202,10 @@ controller/data/memory/
 |---|---|
 | 读取 | `list_tools`、`get_editor_state`、`list_files`、`read_file`、`search_in_files`、`get_scene_tree`、`get_node_info`、`get_project_settings`、`get_editor_log`、`capture_editor_viewport` |
 | 文件 | `write_file`、`write_files`、`edit_file`、`create_dir`、`delete_path`、`rename_path`、`scan_filesystem` |
-| 场景 | `add_node`、`remove_node`、`set_node_property`、`select_nodes`、`instantiate_scene`、`open_scene`、`create_scene`、`save_scene` |
+| 场景 | `add_node`、`attach_script`、`remove_node`、`set_node_property`、`select_nodes`、`instantiate_scene`、`open_scene`、`create_scene`、`save_scene` |
 | 项目 / 运行 | `set_project_setting`、`run_project`、`stop_project` |
 
-长 GDScript 使用显式代码块，不必塞进 JSON 转义：
+脚本使用显式代码块，不必塞进 JSON 转义。**GDScript** 用 `###GDSCRIPT###`，**C#** 用 `###CSHARP###`，语言由文件扩展名决定：
 
 ````
 {"command": "write_file", "params": {"path": "res://scripts/player.gd"}}
@@ -220,11 +221,48 @@ func _physics_process(_delta: float) -> void:
 ###END_GDSCRIPT###
 ````
 
+````
+{"command": "write_file", "params": {"path": "res://scripts/Player.cs"}}
+###CSHARP###
+using Godot;
+
+public partial class Player : CharacterBody2D
+{
+    [Export] public float Speed { get; set; } = 300.0f;
+
+    public override void _PhysicsProcess(double delta)
+    {
+        var dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+        Velocity = dir * Speed;
+        MoveAndSlide();
+    }
+}
+###END_CSHARP###
+````
+
+### GDScript 与 C#
+
+两种语言都是一等公民，插件不会把一种改写成另一种。
+
+| 项目 | GDScript | C# |
+|---|---|---|
+| 脚本文件 | `.gd` | `.cs` |
+| 代码块 | `###GDSCRIPT### … ###END_GDSCRIPT###` | `###CSHARP### … ###END_CSHARP###` |
+| Godot 版本 | 任意 4.7.2 | 必须 **.NET 版** 4.7.2 |
+| 类名 | 自动 | 必须与文件名一致（`Player.cs` → `class Player`） |
+| 挂脚本 | `attach_script`、`add_node.script_path` | 同样的命令 |
+
+- `get_editor_state` 会返回 `csharp`（当前编辑器能否编译 C#）、`dotnet`（项目里是否有 `.sln`/`.csproj`）和 `language`。AI 会先读这些信息再决定用哪种语言，不会往纯 GDScript 项目里塞 `.cs`。
+- 标准（非 .NET）版 Godot 里仍然可以写 `.cs` 文件，但结果会带 `warning`，`attach_script` 会直接拒绝并给出明确原因，而不是静默失败。
+- C# 由 Godot 自己编译，插件不会调用 `dotnet`。运行时如果缺少脚本，请在 MSBuild 面板点 **Build**；`run_project` 的返回里也会提示。
+- C# 项目需要 .NET SDK，这是 Godot 自身的要求，与 NonZeroScript 无关。
+
 插件会拒绝 `res://`/`user://` 之外的路径，保护 `.git`、`.godot`、插件本身和 `project.godot`；删除文件夹必须显式 `recursive=true`。也可以在 Godot 面板里直接关闭“允许 AI 写入”。
 
 ## 环境要求
 
 - **Godot 4.7.2**（插件按 4.7.2 编写；相邻 4.x 版本或许可用，但未测试）
+- C# 项目另需 **Godot 4.7.2 的 .NET 版**和 .NET SDK；纯 GDScript 项目不需要
 - **Chrome 或 Edge**（Chromium 111+，Edge 使用同一个插件包）
 - **Python 3.9+**（中转，仅标准库）
 - Windows / macOS / Linux

@@ -7,7 +7,7 @@
 
 ![NonZeroScript banner](assets/banner.svg)
 
-**NonZeroScript** is the **official derivative of [ZeroScript](https://github.com/sebattfg/ZeroScript-Free)**, rebuilt for **Godot 4.7.2** instead of Roblox Studio. It turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a real Godot editor agent: read and write GDScript, create scenes and nodes, change project settings, run play-tests and read errors — all from a normal AI chat, with **no API key and no terminal**.
+**NonZeroScript** is the **official derivative of [ZeroScript](https://github.com/sebattfg/ZeroScript-Free)**, rebuilt for **Godot 4.7.2** instead of Roblox Studio. It turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a real Godot editor agent: read and write **GDScript or C#**, create scenes and nodes, change project settings, run play-tests and read errors — all from a normal AI chat, with **no API key and no terminal**.
 
 > **Official derivative.** NonZeroScript is the ZeroScript project's Godot edition — an official derivative maintained alongside the original, not an unrelated fork. The Roblox Studio integration, the Roblox MCP bridge and Roblox-specific instructions are intentionally **not** part of this edition. Everything else — the browser-extension agent loop, the command protocol and the free-forever promise — comes from ZeroScript and remains GPL-3.0.
 
@@ -54,7 +54,7 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 - **Random input delay.** Set a minimum and maximum number of seconds (e.g. 2–6 s). Before every simulated input — the startup prompt, a task, or a tool result — NonZeroScript waits a random time in that range. This is much gentler on AI sites than instant, regular automation.
 - **Multi-browser AI rotation.** Open 3 browsers (or 3 tabs), connect all of them, and press **启动 / Start** in each. Every AI call rotates to the next ready session. You can filter a task to one provider or let it use all of them.
 - **Timeline memory.** Each browser AI has its own private chat context, so rotation would normally lose the plot. The controller writes every prompt, reply and tool result to `controller/data/memory/` and prepends a compact **memory brief** to the next turn, whichever browser gets it.
-- **A real Godot toolset** — 28 commands: read/search/write/edit files, inspect and edit the open scene, add/remove nodes, instance scenes, change project settings, run and stop the game, read the editor log and capture a screenshot for the human.
+- **A real Godot toolset** — 29 commands (GDScript **and** C#): read/search/write/edit files, inspect and edit the open scene, add/remove nodes, instance scenes, change project settings, run and stop the game, read the editor log and capture a screenshot for the human.
 - **ChatGPT support updated** for the current composer, alongside DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI and Arena.
 - **Free and open source.** GPL-3.0, no account, no subscription, no API key.
 
@@ -125,6 +125,7 @@ This walks through a complete first session.
 
 - *"Read `project.godot` and the scene tree, then add a `Player` CharacterBody2D with WASD movement and a camera. Save the script to `res://scripts/player.gd`."*
 - *"Find every `print(` in GDScript and replace it with a `Logger.info()` call, adding the logger autoload."*
+- *"This is a .NET project: add `res://scripts/Player.cs` with a CharacterBody2D and WASD movement, attach it to the Player node, and save."*
 - *"Make a pause menu (CanvasLayer) with Resume / Restart / Quit. Wire it to the `ui_cancel` action."*
 - *"Run the project, then read the editor log and fix the first three script errors."*
 - *"Change the window size to 1280×720, stretch mode `canvas_items`, and the default clear color."*
@@ -209,10 +210,10 @@ The console has its own status pills: **中转** (controller), **Godot** (editor
 |---|---|
 | Inspect | `list_tools`, `get_editor_state`, `list_files`, `read_file`, `search_in_files`, `get_scene_tree`, `get_node_info`, `get_project_settings`, `get_editor_log`, `capture_editor_viewport` |
 | Files | `write_file`, `write_files`, `edit_file`, `create_dir`, `delete_path`, `rename_path`, `scan_filesystem` |
-| Scene | `add_node`, `remove_node`, `set_node_property`, `select_nodes`, `instantiate_scene`, `open_scene`, `create_scene`, `save_scene` |
+| Scene | `add_node`, `attach_script`, `remove_node`, `set_node_property`, `select_nodes`, `instantiate_scene`, `open_scene`, `create_scene`, `save_scene` |
 | Project / run | `set_project_setting`, `run_project`, `stop_project` |
 
-GDScript is written with an explicit block, so it never has to be escaped into JSON:
+Scripts are written in an explicit block, so they never have to be escaped into JSON. **GDScript** uses `###GDSCRIPT###` and **C#** uses `###CSHARP###`; the file extension decides the language:
 
 ````
 {"command": "write_file", "params": {"path": "res://scripts/player.gd"}}
@@ -228,11 +229,48 @@ func _physics_process(_delta: float) -> void:
 ###END_GDSCRIPT###
 ````
 
+````
+{"command": "write_file", "params": {"path": "res://scripts/Player.cs"}}
+###CSHARP###
+using Godot;
+
+public partial class Player : CharacterBody2D
+{
+    [Export] public float Speed { get; set; } = 300.0f;
+
+    public override void _PhysicsProcess(double delta)
+    {
+        var dir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+        Velocity = dir * Speed;
+        MoveAndSlide();
+    }
+}
+###END_CSHARP###
+````
+
+### GDScript and C#
+
+Both languages are first-class; you never convert one into the other.
+
+| What | GDScript | C# |
+|---|---|---|
+| Script file | `.gd` | `.cs` |
+| Code block | `###GDSCRIPT### … ###END_GDSCRIPT###` | `###CSHARP### … ###END_CSHARP###` |
+| Godot build | any 4.7.2 | the **.NET** build of 4.7.2 |
+| Class name | implicit | must match the file name (`Player.cs` → `class Player`) |
+| Attach | `attach_script`, `add_node.script_path` | same commands |
+
+- `get_editor_state` reports `csharp` (the running editor can compile C#), `dotnet` (a `.sln`/`.csproj` exists) and `language`. The AI reads this before choosing a language, so a GDScript project is not flooded with `.cs` files.
+- On the standard (non-.NET) Godot build, a `.cs` file can still be written, but the result carries a `warning` and `attach_script` refuses to load it with an explicit message instead of failing silently.
+- Godot compiles C# itself — the plugin never shells out to `dotnet`. If a script is missing at play time, run **Build** in the MSBuild panel; `run_project` returns that hint too.
+- A C# project needs `dotnet`/Mono installed for the editor's own build step; that is a Godot requirement, not a NonZeroScript one.
+
 Long results are capped (12 000 characters by default) so one command cannot eat the whole chat context. The plugin refuses paths outside `res://`/`user://`, protects `.git`, `.godot`, the plugin itself and `project.godot`, and requires `recursive=true` before deleting a folder. Writing can be disabled entirely in the dock.
 
 ## Requirements
 
 - **Godot 4.7.2** (the editor plugin targets 4.7.2; it may work on nearby 4.x releases, but that is untested)
+- C# projects also need the **.NET build of Godot 4.7.2** and a .NET SDK; GDScript needs nothing extra
 - **Chrome or Edge** (Chromium 111+; the Edge package is the same extension)
 - **Python 3.9+** (controller; standard library only)
 - Windows, macOS or Linux

@@ -707,7 +707,7 @@ const ZSProvider = (() => {
   // subtree on stream settle and on the next send, so also mark the assistant body
   // (its identity survives) with .zs-cmd-mask; the overlay.css rule keeps recreated
   // code wrappers hidden.
-  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd)|###mcp_tool###/i;
+  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd|csharp|cs)|###mcp_tool###/i;
   function findToolBlockSpot(item /*, chip */) {
     const b = bodyOf(item);
     if (!b) return null;

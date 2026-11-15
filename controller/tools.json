@@ -5,7 +5,8 @@
   "notes": [
     "Paths use res:// (project) or user://. Absolute filesystem paths are rejected.",
     "Send exactly ONE command per reply and wait for its result.",
-    "For long GDScript, put the path in JSON and the code in a ###GDSCRIPT### block."
+    "Scripts may be GDScript (.gd) or C# (.cs); the file extension picks the language.",
+    "For long scripts, put the path in JSON and the code in a ###GDSCRIPT### block (GDScript) or a ###CSHARP### block (C#)."
   ],
   "tools": [
     {
@@ -17,7 +18,7 @@
     {
       "name": "get_editor_state",
       "category": "read",
-      "description": "Report the connected Godot editor: project name and path, engine version, open scene, selected nodes and whether a project is playing.",
+      "description": "Report the connected Godot editor: project name and path, engine version, open scene, selected nodes, whether a project is playing, and the scripting capabilities (csharp = .NET build, dotnet = a .csproj/.sln exists, language/default).",
       "params": {}
     },
     {
@@ -50,24 +51,24 @@
         "path": { "type": "string", "description": "Folder to search. Default res://", "required": false },
         "regex": { "type": "boolean", "description": "Treat query as a regular expression (default false)", "required": false },
         "case_sensitive": { "type": "boolean", "description": "Default false", "required": false },
-        "include": { "type": "string", "description": "Comma-separated extensions to search, e.g. gd,tscn,cfg", "required": false },
+        "include": { "type": "string", "description": "Comma-separated extensions to search, e.g. gd,cs,tscn,cfg", "required": false },
         "max_results": { "type": "integer", "description": "Default 80", "required": false }
       }
     },
     {
       "name": "write_file",
       "category": "edit",
-      "description": "Create or overwrite a text file. Creates missing folders, rescans the project and can open the file in the editor. For GDScript, prefer the ###GDSCRIPT### block instead of escaping the code in JSON.",
+      "description": "Create or overwrite a text file (.gd, .cs, .tscn, ...). Creates missing folders, rescans the project and can open the file in the editor. For scripts, prefer the code block instead of escaping the code in JSON: ###GDSCRIPT### for GDScript, ###CSHARP### for C#.",
       "params": {
         "path": { "type": "string", "description": "res:// path to write", "required": true },
-        "content": { "type": "string", "description": "Full file content (omitted when a ###GDSCRIPT### block follows)", "required": false },
+        "content": { "type": "string", "description": "Full file content (omitted when a ###GDSCRIPT### or ###CSHARP### block follows)", "required": false },
         "open_in_editor": { "type": "boolean", "description": "Open the file after writing (default false)", "required": false }
       }
     },
     {
       "name": "write_files",
       "category": "edit",
-      "description": "Write several text files in one command. Each item is {path, content}. Use for scaffolding a feature in one turn.",
+      "description": "Write several text files (.gd, .cs, .tscn, .tres, ...) in one command. Each item is {path, content}. Use for scaffolding a feature in one turn.",
       "params": {
         "files": { "type": "array", "description": "Array of {path, content} objects", "required": true },
         "open_in_editor": { "type": "boolean", "description": "Open the first file after writing (default false)", "required": false }
@@ -142,12 +143,22 @@
     {
       "name": "add_node",
       "category": "scene",
-      "description": "Add a new node of any engine type under a parent in the open scene (undoable).",
+      "description": "Add a new node of any engine type under a parent in the open scene (undoable), optionally with a GDScript or C# script attached.",
       "params": {
         "parent_path": { "type": "string", "description": "Scene-relative parent path, \".\" for root", "required": true },
         "type": { "type": "string", "description": "Godot class, e.g. Sprite2D, Label, CharacterBody2D", "required": true },
         "name": { "type": "string", "description": "Node name (default: the type)", "required": false },
-        "properties": { "type": "object", "description": "Optional property values to set", "required": false }
+        "properties": { "type": "object", "description": "Optional property values to set", "required": false },
+        "script_path": { "type": "string", "description": "Optional .gd or .cs script to attach to the new node", "required": false }
+      }
+    },
+    {
+      "name": "attach_script",
+      "category": "scene",
+      "description": "Attach an existing GDScript (.gd) or C# (.cs) script to a node in the open scene, or detach it with script_path \"\" (undoable).",
+      "params": {
+        "path": { "type": "string", "description": "Scene-relative node path", "required": true },
+        "script_path": { "type": "string", "description": "res:// path of the .gd/.cs script; empty string detaches", "required": true }
       }
     },
     {
@@ -191,7 +202,8 @@
       "params": {
         "path": { "type": "string", "description": "res:// path, e.g. res://scenes/main_menu.tscn", "required": true },
         "root_type": { "type": "string", "description": "Root class (default Node2D)", "required": false },
-        "root_name": { "type": "string", "description": "Root node name (default Main)", "required": false }
+        "root_name": { "type": "string", "description": "Root node name (default Main)", "required": false },
+        "script_path": { "type": "string", "description": "Optional .gd or .cs script for the root node", "required": false }
       }
     },
     {

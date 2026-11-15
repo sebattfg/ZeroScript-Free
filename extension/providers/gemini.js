@@ -620,7 +620,7 @@ const ZSProvider = (() => {
   // a code-block, so hiding the wrapper then fails. The core anchors the chip at
   // the turn level (chipAtItemLevel), so the returned position is unused; this
   // function's real job is applying the .zs-tool-hide classes correctly.
-  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd)|###mcp_tool###/i;
+  const CMD_SHAPE = /"(?:command|tool)"\s*:\s*"|###\s*(?:lua|gdscript|gd|csharp|cs)|###mcp_tool###/i;
   function findToolBlockSpot(item /*, chip */) {
     const replies = [...item.querySelectorAll(S.reply)].filter((m) => !m.closest(S.thinking));
     let hidAny = null;

@@ -8,11 +8,18 @@ per-site provider adapters are derived from upstream and remain GPL-3.0.
 
 ### Added
 
-- **Godot 4.7.2 editor plugin** (`editor/godot-4.7.2`). A 28-command toolset:
+- **Godot 4.7.2 editor plugin** (`editor/godot-4.7.2`). A 29-command toolset:
   project/file inspection and editing, scene tree and node editing (undoable),
-  scene creation/opening/saving, project settings, play-testing, editor log
-  reading, filesystem rescans and editor screenshots. Outbound HTTP polling
-  only; no inbound port. Path guards, write toggle and protected paths.
+  script attachment, scene creation/opening/saving, project settings,
+  play-testing, editor log reading, filesystem rescans and editor screenshots.
+  Outbound HTTP polling only; no inbound port. Path guards, write toggle and
+  protected paths.
+- **GDScript and C#** — `.gd` and `.cs` scripts go through the same
+  write/edit/attach path. `###CSHARP###` code blocks, `attach_script`
+  (undoable), `add_node`/`create_scene` `script_path`, and `get_editor_state`
+  reporting `csharp`/`dotnet`/`language` so the AI picks a language that the
+  open editor can actually compile. Standard (non-.NET) Godot builds still
+  accept `.cs` writes but return a `warning` and refuse to attach them.
 - **Visual controller** (`controller/`) — standard-library Python relay with a
   browser console at `http://127.0.0.1:8790`: task queue, live sessions, editor
   status, live log, timeline browser, command tester and settings. No command
@@ -44,11 +51,16 @@ per-site provider adapters are derived from upstream and remain GPL-3.0.
 - Provider prompts and UI strings now describe Godot and NonZeroScript.
 - Command catalogue moved to `controller/tools.json` (single source of truth
   for the prompt, the console and the editor plugin).
-- GDScript is sent in explicit `###GDSCRIPT###` blocks instead of `###LUA###`.
+- Scripts are sent in explicit `###GDSCRIPT###` or `###CSHARP###` blocks instead
+  of `###LUA###`; legacy `###LUA###` markers still parse.
+- `.cs`, `.csproj` and `.sln` are pinned to LF in `.gitattributes`.
 
 ### Known limitations
 
 - The Godot plugin targets 4.7.2; adjacent 4.x versions are untested.
+- C# support is untested against a real .NET Godot build: it is implemented
+  with feature detection (`CSharpScript`, `OS.has_feature("dotnet")`, the Script
+  loader's extension list) and degrades to a clear error without .NET.
 - v0.1.0 is text-first: screenshots are saved for the human but not sent to the
   AI, and there is no image/asset generation or asset-library browsing yet.
 - AI website DOMs change; provider adapters may need selector updates.

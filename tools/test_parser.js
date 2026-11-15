@@ -101,6 +101,72 @@ test("two commands are reported, the agent loop uses the first", () => {
   assert.strictEqual(calls[0].arguments.path, "a");
 });
 
+test("fenced JSON + CSHARP block", () => {
+  const text =
+    '```json\n{"command":"write_file","params":{"path":"res://scripts/Player.cs"}}\n```\n' +
+    "###CSHARP###\nusing Godot;\n\npublic partial class Player : CharacterBody2D\n{\n" +
+    "    public override void _Ready()\n    {\n        GD.Print(\"hi\");\n    }\n}\n###END_CSHARP###";
+  const c = one(text);
+  assert.strictEqual(c.tool, "write_file");
+  assert.strictEqual(c.arguments.path, "res://scripts/Player.cs");
+  assert.ok(c.arguments.content.startsWith("using Godot;"), "body missing");
+  assert.ok(c.arguments.content.includes("public partial class Player"), "body truncated");
+  assert.ok(c.arguments.content.trimEnd().endsWith("}"), "closing brace lost");
+});
+
+test("###CS### and ###C# ### blocks parse too", () => {
+  const short = one('{"command":"write_file","params":{"path":"res://A.cs"}}\n###CS###\npublic partial class A : Node { }\n###END_CS###');
+  assert.strictEqual(short.arguments.content, "public partial class A : Node { }");
+  const hash = one('{"command":"write_file","params":{"path":"res://B.cs"}}\n###C# ###\npublic partial class B : Node { }\n###END_C# ###');
+  assert.strictEqual(hash.arguments.content, "public partial class B : Node { }");
+});
+
+test("a bare CSHARP block is not a command either", () => {
+  const text = "###CSHARP###\npublic partial class A : Node { }\n###END_CSHARP###";
+  assert.strictEqual(P.parseToolCalls(text).length, 0);
+  assert.ok(P.diagnose(text), "should ask the model for the envelope");
+});
+
+test("attach_script aliases normalise", () => {
+  assert.strictEqual(P.normalizeToolName("Attach Script"), "attach_script");
+  assert.strictEqual(P.normalizeToolName("set_script"), "attach_script");
+  assert.strictEqual(P.normalizeToolName("attachScript"), "attach_script");
+});
+
+test("code block language is detected", () => {
+  assert.strictEqual(P.codeLanguage("###CSHARP###\nclass A {}\n###END_CSHARP###"), "cs");
+  assert.strictEqual(P.codeLanguage("###CS###\nclass A {}\n###END_CS###"), "cs");
+  assert.strictEqual(P.codeLanguage("###GDSCRIPT###\nextends Node\n###END_GDSCRIPT###"), "gd");
+  assert.strictEqual(P.codeLanguage("###LUA###\nprint(1)\n###END_LUA###"), "gd");
+  assert.strictEqual(P.codeLanguage("no block here"), null);
+});
+
+test("a block and its path must agree on the language", () => {
+  const okCs = P.codeLanguageWarning(
+    { command: "write_file", params: { path: "res://Player.cs" } },
+    "###CSHARP###\nusing Godot;\n###END_CSHARP###"
+  );
+  assert.strictEqual(okCs, "");
+  const bad = P.codeLanguageWarning(
+    { command: "write_file", params: { path: "res://player.gd" } },
+    "###CSHARP###\nusing Godot;\n###END_CSHARP###"
+  );
+  assert.ok(bad.includes("player.gd"), "should name the path");
+  const badGd = P.codeLanguageWarning(
+    { command: "write_files", params: { files: [{ path: "res://A.cs" }] } },
+    "###GDSCRIPT###\nextends Node\n###END_GDSCRIPT###"
+  );
+  assert.ok(badGd.includes("A.cs"), "should look inside write_files");
+  // Read-only commands never warn, even if the reply quotes code.
+  assert.strictEqual(
+    P.codeLanguageWarning(
+      { command: "read_file", params: { path: "res://A.cs" } },
+      "###GDSCRIPT###\nextends Node\n###END_GDSCRIPT###"
+    ),
+    ""
+  );
+});
+
 test("command names are normalised", () => {
   const c = one('{"command":"Read File","params":{"path":"a"}}');
   assert.strictEqual(c.tool, "read_file");

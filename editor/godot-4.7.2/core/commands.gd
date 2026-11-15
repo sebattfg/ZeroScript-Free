@@ -5,6 +5,9 @@
 # {"ok": false, "error": "<why>"}. The controller transports the result to the
 # browser AI. Keep results compact: the AI has a character budget.
 #
+# Scripts may be GDScript (.gd) or C# (.cs). C# needs the .NET build of Godot
+# 4.7.2; the editor state reports whether it is available.
+#
 # Safety:
 #  - only res:// and user:// paths, never outside the project;
 #  - .git, .godot and the plugin itself are protected;
@@ -15,7 +18,8 @@
 extends RefCounted
 
 const VERSION := "0.1.0"
-const TEXT_EXTS := ["gd", "tscn", "tres", "godot", "cfg", "json", "md", "txt", "gdshader", "shader", "csv", "svg", "import"]
+const TEXT_EXTS := ["gd", "cs", "tscn", "tres", "godot", "cfg", "json", "md", "txt", "gdshader", "shader", "csv", "svg", "import", "csproj", "sln"]
+const SCRIPT_EXTS := ["gd", "cs"]
 const MAX_READ_BYTES := 4 * 1024 * 1024
 
 # Untyped on purpose: the plugin may be an EditorPlugin, but typing it here
@@ -62,6 +66,8 @@ func execute(name: String, params: Dictionary) -> Dictionary:
 			return _set_node_property(params)
 		"add_node":
 			return _add_node(params)
+		"attach_script":
+			return _attach_script(params)
 		"remove_node":
 			return _remove_node(params)
 		"select_nodes":
@@ -113,6 +119,8 @@ func _editor_state() -> Dictionary:
 	var open_scenes := 0
 	if EditorInterface.has_method("get_open_scenes"):
 		open_scenes = EditorInterface.get_open_scenes().size()
+	var csharp := _csharp_available()
+	var dotnet := _dotnet_project()
 	return _ok({
 		"project_name": str(ProjectSettings.get_setting("application/config/name", "")),
 		"project_path": ProjectSettings.globalize_path("res://"),
@@ -124,6 +132,10 @@ func _editor_state() -> Dictionary:
 		"playing": _is_playing(),
 		"selection": selection,
 		"write_enabled": allow_write,
+		"language": "csharp" if csharp else "gdscript",
+		"csharp": csharp,
+		"dotnet": dotnet,
+		"script_extensions": SCRIPT_EXTS,
 	})
 
 
@@ -131,6 +143,68 @@ func _is_playing() -> bool:
 	if EditorInterface.has_method("is_playing_scene"):
 		return EditorInterface.is_playing_scene()
 	return false
+
+
+# True when the running Godot binary carries C# support. Checked three ways so
+# the answer survives API changes: the CSharpScript class, the build feature,
+# and the extensions the Script resource loader recognises.
+func _csharp_available() -> bool:
+	if ClassDB.class_exists("CSharpScript"):
+		return true
+	if OS.has_feature("dotnet"):
+		return true
+	for ext in ResourceLoader.get_recognized_extensions_for_type("Script"):
+		var e := str(ext).to_lower()
+		if e == "cs" or e == "csx":
+			return true
+	return false
+
+
+# A .NET project has a .sln (project root) or at least one .csproj. The walk is
+# shallow on purpose: it stops at the first directory that has one.
+func _dotnet_project() -> bool:
+	for ext in ["csproj", "sln"]:
+		if not _find_by_ext("res://", ext, 0, 2).is_empty():
+			return true
+	return false
+
+
+func _find_by_ext(dir_path: String, ext: String, depth: int, max_depth: int) -> Array:
+	var out: Array = []
+	var d := DirAccess.open(dir_path)
+	if d == null:
+		return out
+	for f in d.get_files():
+		if f.get_extension().to_lower() == ext:
+			out.append(dir_path.path_join(f))
+	if not out.is_empty() or depth >= max_depth:
+		return out
+	for sub in d.get_directories():
+		if sub.begins_with(".") or sub == "addons":
+			continue
+		out.append_array(_find_by_ext(dir_path.path_join(sub), ext, depth + 1, max_depth))
+		if not out.is_empty():
+			break
+	return out
+
+
+# Load a .gd or .cs script as a Script resource. Returns
+# {"script": <Script>, "path": <res://...>} or {"error": "<why>"}.
+func _load_script(raw: String) -> Dictionary:
+	var path := _safe_path(raw)
+	if path.is_empty():
+		return {"error": "invalid script path (use res://...)"}
+	var ext := path.get_extension().to_lower()
+	if not SCRIPT_EXTS.has(ext):
+		return {"error": "script must be a .gd or .cs file, got '%s'" % ext}
+	if not FileAccess.file_exists(path):
+		return {"error": "script not found: %s" % path}
+	if ext == "cs" and not _csharp_available():
+		return {"error": "this Godot build has no C# support; open the project with the .NET build of Godot 4.7.2 for .cs scripts"}
+	var res = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if res == null or not (res is Script):
+		return {"error": "could not load %s as a script" % path}
+	return {"script": res, "path": path}
 
 
 func _open_scene_path() -> String:
@@ -224,7 +298,7 @@ func _write_text(path: String, content: String) -> bool:
 
 
 func _open_in_editor(path: String) -> void:
-	if path.ends_with(".gd"):
+	if path.ends_with(".gd") or path.ends_with(".cs"):
 		var res := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
 		if res is Script:
 			EditorInterface.edit_script(res)
@@ -312,7 +386,7 @@ func _search_in_files(params: Dictionary) -> Dictionary:
 	var use_regex := bool(params.get("regex", false))
 	var case_sensitive := bool(params.get("case_sensitive", false))
 	var max_results := clampi(int(params.get("max_results", 80)), 1, 500)
-	var exts := _csv_lower(str(params.get("include", "gd,tscn,tres,godot,cfg,json,md,txt,gdshader,shader")))
+	var exts := _csv_lower(str(params.get("include", "gd,cs,tscn,tres,godot,cfg,json,md,txt,gdshader,shader")))
 	var rx: RegEx = null
 	if use_regex:
 		rx = RegEx.new()
@@ -381,7 +455,13 @@ func _write_file(params: Dictionary) -> Dictionary:
 	_rescan()
 	if bool(params.get("open_in_editor", false)):
 		_open_in_editor(path)
-	return _ok({"path": path, "bytes": content.to_utf8_buffer().size(), "written": true})
+	var out := {"path": path, "bytes": content.to_utf8_buffer().size(), "written": true}
+	if path.ends_with(".cs"):
+		if not _csharp_available():
+			out["warning"] = "this Godot build has no C# support: the .cs file was written but will not compile"
+		elif not _dotnet_project():
+			out["warning"] = "no .csproj/.sln found: use Project > Tools > C# > Create C# solution so .cs scripts compile"
+	return _ok(out)
 
 
 func _write_files(params: Dictionary) -> Dictionary:
@@ -406,7 +486,16 @@ func _write_files(params: Dictionary) -> Dictionary:
 	_rescan()
 	if bool(params.get("open_in_editor", false)) and not written.is_empty():
 		_open_in_editor(str(written[0]))
-	return _ok({"written": written, "count": written.size(), "errors": errors})
+	var out := {"written": written, "count": written.size(), "errors": errors}
+	for p in written:
+		if not str(p).ends_with(".cs"):
+			continue
+		if not _csharp_available():
+			out["warning"] = "this Godot build has no C# support: .cs files were written but will not compile"
+		elif not _dotnet_project():
+			out["warning"] = "no .csproj/.sln found: use Project > Tools > C# > Create C# solution so .cs scripts compile"
+		break
+	return _ok(out)
 
 
 func _edit_file(params: Dictionary) -> Dictionary:
@@ -752,6 +841,15 @@ func _add_node(params: Dictionary) -> Dictionary:
 	if base_name.is_empty():
 		base_name = type_name
 	node.name = _unique_name(parent, base_name)
+	var script_path := str(params.get("script_path", "")).strip_edges()
+	var script_abs := ""
+	if not script_path.is_empty():
+		var loaded := _load_script(script_path)
+		if loaded.has("error"):
+			node.free()
+			return _err(str(loaded["error"]))
+		node.set_script(loaded["script"])
+		script_abs = str(loaded["path"])
 	var ur = _undo_redo()
 	if ur != null:
 		ur.create_action("NonZeroScript: add %s" % String(node.name))
@@ -768,8 +866,44 @@ func _add_node(params: Dictionary) -> Dictionary:
 			var pname := str(key)
 			if _find_property(node, pname):
 				node.set_indexed(NodePath(pname), _coerce(props[key], node.get_indexed(NodePath(pname)) if pname.contains(":") else node.get(pname)))
+	var out := {"path": String(root.get_path_to(node)), "type": node.get_class()}
+	if not script_abs.is_empty():
+		out["script"] = script_abs
 	_mark_unsaved()
-	return _ok({"path": String(root.get_path_to(node)), "type": node.get_class()})
+	return _ok(out)
+
+
+func _attach_script(params: Dictionary) -> Dictionary:
+	if not allow_write:
+		return _err("editing is disabled in the NonZeroScript dock")
+	var root := _scene_root()
+	if root == null:
+		return _err("no scene is open in the Godot editor")
+	var n := _node(str(params.get("path", ".")))
+	if n == null:
+		return _err("node not found: %s" % str(params.get("path", ".")))
+	var raw := str(params.get("script_path", "")).strip_edges()
+	var script_res = null
+	var script_abs := ""
+	if not raw.is_empty():
+		var loaded := _load_script(raw)
+		if loaded.has("error"):
+			return _err(str(loaded["error"]))
+		script_res = loaded["script"]
+		script_abs = str(loaded["path"])
+	var previous = n.get_script()
+	var out := {"path": String(root.get_path_to(n)), "script": script_abs, "changed": previous != script_res}
+	if previous != script_res:
+		var ur = _undo_redo()
+		if ur != null:
+			ur.create_action("NonZeroScript: script on %s" % String(n.name))
+			ur.add_do_property(n, "script", script_res)
+			ur.add_undo_property(n, "script", previous)
+			ur.commit_action()
+		else:
+			n.set_script(script_res)
+		_mark_unsaved()
+	return _ok(out)
 
 
 func _unique_name(parent: Node, base: String) -> String:
@@ -891,6 +1025,13 @@ func _create_scene(params: Dictionary) -> Dictionary:
 	if root_name.is_empty():
 		root_name = "Main"
 	root.name = root_name
+	var script_path := str(params.get("script_path", "")).strip_edges()
+	if not script_path.is_empty():
+		var loaded := _load_script(script_path)
+		if loaded.has("error"):
+			root.free()
+			return _err(str(loaded["error"]))
+		root.set_script(loaded["script"])
 	var packed := PackedScene.new()
 	var err := packed.pack(root)
 	if err != OK:
@@ -905,7 +1046,10 @@ func _create_scene(params: Dictionary) -> Dictionary:
 		return _err("could not save scene: %s" % error_string(err))
 	_rescan()
 	EditorInterface.open_scene_from_path(path)
-	return _ok({"path": path, "root_type": root_type})
+	var out := {"path": path, "root_type": root_type}
+	if not script_path.is_empty():
+		out["script"] = script_path
+	return _ok(out)
 
 
 func _save_scene(params: Dictionary) -> Dictionary:
@@ -981,7 +1125,15 @@ func _run_project(params: Dictionary) -> Dictionary:
 			EditorInterface.stop_playing_scene()
 		_:
 			return _err("mode must be main, current, scene or stop")
-	return _ok({"mode": mode, "playing": _is_playing()})
+	var csharp := _csharp_available()
+	var dotnet := _dotnet_project()
+	var out := {"mode": mode, "playing": _is_playing(), "csharp": csharp, "dotnet": dotnet}
+	if mode != "stop":
+		if csharp and dotnet:
+			out["note"] = "C# is compiled by the .NET build of Godot; if scripts are missing at runtime, run Build in the MSBuild panel and play again."
+		elif not csharp and not _find_by_ext("res://", "cs", 0, 6).is_empty():
+			out["warning"] = "the project contains .cs files but this Godot build has no C# support: open it with the .NET build"
+	return _ok(out)
 
 
 func _stop_project() -> Dictionary:
