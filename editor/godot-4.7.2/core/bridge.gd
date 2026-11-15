@@ -16,8 +16,10 @@ extends Node
 signal status_changed(info: Dictionary)
 signal log_line(text: String)
 
-const PLUGIN_VERSION := "0.1.0"
+const PLUGIN_VERSION := "0.2.0"
 const CONFIG_PATH := "user://nonzeroscript_editor.cfg"
+# The controller's performance mode sends its preferred cadence in
+# /api/editor/poll -> settings.poll_ms (400 ms balanced, 1000 ms eco).
 const BASE_INTERVAL := 0.4
 const MAX_INTERVAL := 5.0
 
@@ -31,6 +33,7 @@ var _http: HTTPRequest
 var _busy := false
 var _timer := 0.0
 var _poll_interval := BASE_INTERVAL
+var _base_interval := BASE_INTERVAL
 var _failures := 0
 var _connected := false
 var _editor_id := ""
@@ -101,7 +104,8 @@ func _poll() -> void:
 	if _failures > 0 or not _connected:
 		_log("Connected to controller %s" % controller_url)
 	_failures = 0
-	_poll_interval = BASE_INTERVAL
+	_apply_poll_hint(data)
+	_poll_interval = _base_interval
 	_connected = true
 	_last_error = ""
 	if data.has("commands") and typeof(data["commands"]) == TYPE_ARRAY:
@@ -110,6 +114,17 @@ func _poll() -> void:
 	while not _outbox.is_empty():
 		await _send_one_result()
 	_emit_status(data)
+
+
+# The console picks a performance mode; the controller forwards the cadence it
+# wants the plugin to poll at. Values outside 150 ms .. 10 s are ignored.
+func _apply_poll_hint(data: Dictionary) -> void:
+	if not data.has("settings") or typeof(data["settings"]) != TYPE_DICTIONARY:
+		return
+	var settings: Dictionary = data["settings"]
+	var ms := int(settings.get("poll_ms", 0))
+	if ms > 0:
+		_base_interval = clampf(float(ms) / 1000.0, 0.15, 10.0)
 
 
 func _send_one_result() -> void:
@@ -132,7 +147,7 @@ func _http_failed(res: Array) -> bool:
 
 func _on_offline(res: Variant) -> void:
 	_failures += 1
-	_poll_interval = minf(MAX_INTERVAL, BASE_INTERVAL * pow(1.7, minf(float(_failures), 6.0)))
+	_poll_interval = minf(MAX_INTERVAL, _base_interval * pow(1.7, minf(float(_failures), 6.0)))
 	var why := "offline"
 	if typeof(res) == TYPE_ARRAY and res.size() >= 1:
 		why = _http_result_name(int(res[0]))
@@ -297,8 +312,8 @@ func set_enabled(on: bool) -> void:
 
 func reconnect() -> void:
 	_failures = 0
-	_poll_interval = BASE_INTERVAL
-	_timer = BASE_INTERVAL
+	_poll_interval = _base_interval
+	_timer = _base_interval
 	_connected = false
 	_last_error = ""
 	_last_status_sig = ""

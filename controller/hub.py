@@ -30,11 +30,13 @@ from typing import Any, Optional
 
 try:  # package import (python -m controller.main)
     from .memory import Memory
-    from .settings import PROVIDERS, Settings
+    from .metrics import rss_mb
+    from .settings import PROVIDERS, Settings, perf_profile
     from .version import __version__
 except ImportError:  # standalone import (python controller/main.py)
     from memory import Memory
-    from settings import PROVIDERS, Settings
+    from metrics import rss_mb
+    from settings import PROVIDERS, Settings, perf_profile
     from version import __version__
 
 
@@ -146,7 +148,7 @@ class Hub:
         self.tasks: dict[str, Task] = {}
         self.task_order: list[str] = []
         self.active_task_id: Optional[str] = None
-        self.logs: deque[dict[str, Any]] = deque(maxlen=800)
+        self.logs: deque[dict[str, Any]] = deque(maxlen=int(settings.get("log_limit")))
         self.log_seq = 0
         self._stop = False
         self._tools: list[dict[str, Any]] = []
@@ -156,6 +158,37 @@ class Hub:
         self.port = int(settings.get("port"))
         threading.Thread(target=self._reaper, name="nzs-reaper", daemon=True).start()
         threading.Thread(target=self._log_flusher, name="nzs-stdout", daemon=True).start()
+        keep_days = int(self.settings.get("memory_keep_days") or 0)
+        if keep_days > 0:
+            removed = self.memory.prune(keep_days)
+            if removed:
+                self.log("memory", f"清理了 {removed} 个超过 {keep_days} 天的时间线文件")
+
+    # ══════════════════════════════════════════════════════════════════════
+    #  RUNTIME TUNING (performance mode)
+    # ══════════════════════════════════════════════════════════════════════
+    def apply_runtime_settings(self) -> None:
+        """Re-apply settings that live outside the settings dict (log ring)."""
+        with self.lock:
+            limit = int(self.settings.get("log_limit"))
+            if self.logs.maxlen != limit:
+                self.logs = deque(self.logs, maxlen=limit)
+
+    def _prune_tasks_locked(self) -> None:
+        """Keep finished tasks bounded (they hold prompts and replies)."""
+        keep = int(self.settings.get("keep_tasks"))
+        finished = [
+            tid
+            for tid in self.task_order
+            if tid in self.tasks and self.tasks[tid].state in ("done", "error", "stopped")
+        ]
+        excess = len(finished) - keep
+        for tid in finished[: max(0, excess)]:
+            self.tasks.pop(tid, None)
+            try:
+                self.task_order.remove(tid)
+            except ValueError:
+                pass
 
     # ══════════════════════════════════════════════════════════════════════
     #  TOOLS
@@ -652,6 +685,7 @@ class Hub:
         task.finished_at = now()
         if self.active_task_id == task.id:
             self.active_task_id = None
+        self._prune_tasks_locked()
         if self.settings.get("auto_start_queue"):
             if self._start_next_task_locked():
                 self._dispatch_locked()
@@ -744,7 +778,11 @@ class Hub:
                 "ok": True,
                 "commands": cmds,
                 "queue": len(ed.queue),
-                "settings": {"max_result_chars": self.settings.get("max_result_chars")},
+                "settings": {
+                    "max_result_chars": self.settings.get("max_result_chars"),
+                    "poll_ms": int(self.settings.get("editor_poll_ms")),
+                    "perf_mode": str(self.settings.get("perf_mode")),
+                },
                 "controller": {"version": __version__, "now": iso()},
             }
 
@@ -825,7 +863,6 @@ class Hub:
     def status(self) -> dict[str, Any]:
         with self.lock:
             sessions = sorted(self.sessions.values(), key=lambda s: (s.provider, s.browser, s.id))
-            tasks = [self.tasks[tid] for tid in reversed(self.task_order[-40:]) if tid in self.tasks]
             stats = {
                 "sessions": len(self.sessions),
                 "ready": sum(1 for s in sessions if s.state == "ready"),
@@ -835,10 +872,37 @@ class Hub:
                 "errors": sum(s.stats["errors"] for s in sessions),
             }
             active = self.tasks.get(self.active_task_id) if self.active_task_id else None
+            keep = max(1, int(self.settings.get("keep_tasks")))
+            tasks = [self.tasks[tid] for tid in reversed(self.task_order[-keep:]) if tid in self.tasks]
+            eligible = [
+                s for s in sessions
+                if s.enabled and s.state == "ready" and s.turn is None
+            ]
+            rotation_on = bool(self.settings.get("rotation"))
+            mode = str(self.settings.get("perf_mode"))
+            profile = perf_profile(mode)
             return {
                 "ok": True,
                 "version": __version__,
-                "engine": "Godot 4.7.2",
+                "engine": self.editor.engine or "Godot 4.7.2",
+                "editor_kind": "godot",
+                "perf": {
+                    "mode": mode,
+                    "label": profile["label"],
+                    "summary": profile["summary"],
+                    "ui_refresh_ms": int(self.settings.get("ui_refresh_ms")),
+                    "session_poll_ms": int(self.settings.get("session_poll_ms")),
+                    "editor_poll_ms": int(self.settings.get("editor_poll_ms")),
+                    "rss_mb": rss_mb(),
+                    "log_limit": self.logs.maxlen,
+                    "keep_tasks": keep,
+                },
+                "rotation": {
+                    "switch": rotation_on,
+                    "eligible": len(eligible),
+                    "active": bool(rotation_on and len(eligible) >= 2),
+                    "mode": "round_robin" if (rotation_on and len(eligible) >= 2) else ("single" if eligible else "idle"),
+                },
                 "uptime": int(now() - self.started),
                 "host": self.host,
                 "port": self.port,

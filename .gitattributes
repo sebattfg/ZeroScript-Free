@@ -13,3 +13,6 @@
 *.csproj   text eol=lf
 *.sln      text eol=lf
 *.cfg      text eol=lf
+
+# Release archives in dist/ are binary blobs.
+*.zip binary

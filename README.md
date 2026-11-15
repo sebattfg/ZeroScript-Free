@@ -1,15 +1,18 @@
-# NonZeroScript - Free AI Agent for Godot 4.7.2
+# NonZeroScript - Free AI Agent for Your Game Editor
 
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
-![Godot](https://img.shields.io/badge/Godot-4.7.2-478cbf)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(64%20%26%2032--bit)-lightgrey)
+![Editor](https://img.shields.io/badge/editors-multi--editor%20%C2%B7%20Godot%204.7.2-478cbf)
+![Languages](https://img.shields.io/badge/scripts-GDScript%20%2B%20C%23-2f9e44)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.1.0-6366f1)
+![Version](https://img.shields.io/badge/version-0.2.0-6366f1)
 
 ![NonZeroScript banner](assets/banner.svg)
 
-**NonZeroScript** is the **official derivative of [ZeroScript](https://github.com/sebattfg/ZeroScript-Free)**, rebuilt for **Godot 4.7.2** instead of Roblox Studio. It turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a real Godot editor agent: read and write **GDScript or C#**, create scenes and nodes, change project settings, run play-tests and read errors — all from a normal AI chat, with **no API key and no terminal**.
+**NonZeroScript** is the **official derivative of [ZeroScript](https://github.com/sebattfg/ZeroScript-Free)**, rebuilt for **game editors** instead of Roblox Studio. It turns ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a real editor agent: read and write **GDScript or C#**, create scenes and nodes, change project settings, run play-tests and read errors — all from a normal AI chat, with **no API key and no terminal**.
 
-> **Official derivative.** NonZeroScript is the ZeroScript project's Godot edition — an official derivative maintained alongside the original, not an unrelated fork. The Roblox Studio integration, the Roblox MCP bridge and Roblox-specific instructions are intentionally **not** part of this edition. Everything else — the browser-extension agent loop, the command protocol and the free-forever promise — comes from ZeroScript and remains GPL-3.0.
+It is **multi-editor by design**: the browser extension and the console only speak one small editor-agnostic protocol, and every editor gets its own plugin folder under `editor/`. **Godot 4.7.2 (GDScript + C#) ships today**; adding Unity, Unreal or another engine means writing one adapter, not rewriting the agent. See [`editor/PROTOCOL.md`](editor/PROTOCOL.md).
+
+> **Official derivative.** NonZeroScript is the ZeroScript project's multi-editor edition — an official derivative maintained alongside the original, not an unrelated fork. The Roblox Studio integration, the Roblox MCP bridge and Roblox-specific instructions are intentionally **not** part of this edition. Everything else — the browser-extension agent loop, the command protocol and the free-forever promise — comes from ZeroScript and remains GPL-3.0.
 
 > 🌐 Upstream ZeroScript: **[zerodev.tools/zeroscript](https://zerodev.tools/zeroscript)** · [github.com/sebattfg/ZeroScript-Free](https://github.com/sebattfg/ZeroScript-Free)
 
@@ -17,10 +20,10 @@
 
 | | ZeroScript (Roblox) | **NonZeroScript (Godot)** |
 |---|---|---|
-| Target | Roblox Studio via MCP | **Godot 4.7.2 via an editor plugin** |
+| Target | Roblox Studio via MCP | **Any game editor via a plugin** (Godot 4.7.2 included) |
 | Control | Small bar in the chat + CLI bridge | **Visual console + local relay**, no command line |
 | Input pacing | Fixed internal waits | **Random wait between a minimum and maximum number of seconds before every simulated input** |
-| Browsers | One tab | **Multi-browser AI rotation**, with a shared timeline memory |
+| Browsers | One tab | **You choose which browsers join**; two or more enable rotation, with a shared timeline memory |
 | Memory | Per-place project memory | **Timeline files per task and per browser session**, used to hand work between browsers |
 | Providers | 8 | **8: ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI, Arena** (ChatGPT support updated) |
 
@@ -28,11 +31,11 @@
 
 ```
  ┌─────────────────────────────┐        ┌──────────────────────────────┐
- │  Browser (Chrome / Edge)     │        │  Godot 4.7.2 editor           │
- │  ChatGPT · DeepSeek · Gemini │        │  addons/nonzeroscript         │
- │  Kimi · GLM · Qwen · Meta    │        │  (file + scene commands)     │
- │  Arena                       │        │                              │
- │        ▲   browser extension │        │        ▲   editor plugin     │
+ │  Browser (Chrome / Edge)     │        │  Your editor                 │
+ │  ChatGPT · DeepSeek · Gemini │        │  editor/<adapter>/           │
+ │  Kimi · GLM · Qwen · Meta    │        │  Godot 4.7.2 today,          │
+ │  Arena                       │        │  any engine that speaks the   │
+ │        ▲   browser extension │        │  bridge protocol             │
  └────────┼─────────────────────┘        └────────┼─────────────────────┘
           │  HTTP (localhost)                     │  HTTP poll (localhost)
           ▼                                       ▼
@@ -44,7 +47,7 @@
 
 1. The **browser extension** runs inside the AI chat page. It types the prompt, waits for the answer, parses **one** command and reports it.
 2. The **controller** is a small local program (Python standard library only). It shows a **visual console**, decides which browser tab gets the next turn (round-robin), executes the command through the editor and stores the timeline.
-3. The **Godot editor plugin** performs the real work in your project: files, scenes, nodes, project settings, play-tests and logs.
+3. The **editor plugin** performs the real work in your project: files, scenes, nodes, project settings, play-tests and logs. The shipped adapter is Godot 4.7.2; the protocol is the same for any editor.
 
 No cloud service is involved. Everything runs on your machine, and the only network traffic is between your browser, the controller and Godot on `127.0.0.1`.
 
@@ -52,23 +55,25 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 
 - **Visual console instead of a command line.** Start the controller by double-clicking a script; the console opens in your browser. Queue tasks, watch sessions, inspect the timeline, edit the delay and rotation settings.
 - **Random input delay.** Set a minimum and maximum number of seconds (e.g. 2–6 s). Before every simulated input — the startup prompt, a task, or a tool result — NonZeroScript waits a random time in that range. This is much gentler on AI sites than instant, regular automation.
-- **Multi-browser AI rotation.** Open 3 browsers (or 3 tabs), connect all of them, and press **启动 / Start** in each. Every AI call rotates to the next ready session. You can filter a task to one provider or let it use all of them.
+- **You pick the browsers.** Open as many browsers or tabs as you like, press **启动 / Start** in each, then tick **轮换** only for the ones that should take turns. One ticked session = single-browser mode; **two or more ticked sessions turn rotation on** (round-robin), and the console always shows which mode is active.
+- **Three performance modes.** **极致性能 / eco** keeps the relay tiny (target: **under 30 MB RAM**, small logs, slow UI refresh), **均衡 / balanced** is the default, and **最快速度 / turbo** polls hardest and keeps the longest results. One dropdown, no restart.
 - **Timeline memory.** Each browser AI has its own private chat context, so rotation would normally lose the plot. The controller writes every prompt, reply and tool result to `controller/data/memory/` and prepends a compact **memory brief** to the next turn, whichever browser gets it.
-- **A real Godot toolset** — 29 commands (GDScript **and** C#): read/search/write/edit files, inspect and edit the open scene, add/remove nodes, instance scenes, change project settings, run and stop the game, read the editor log and capture a screenshot for the human.
+- **A real editor toolset** — 29 commands for the Godot adapter (GDScript **and** C#): read/search/write/edit files, inspect and edit the open scene, add/remove nodes, instance scenes, change project settings, run and stop the game, read the editor log and capture a screenshot for the human.
 - **ChatGPT support updated** for the current composer, alongside DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI and Arena.
 - **Free and open source.** GPL-3.0, no account, no subscription, no API key.
 
 ## Install
 
-There are three pieces. Install all three once.
+There are three pieces. Install all three once. **Prebuilt packages live in [`dist/`](dist)** (`NonZeroScript-<version>.zip` contains everything), so you can skip the build step entirely.
+
+> **Platforms:** Windows 10/11 and macOS, 64-bit and 32-bit. **Linux is not supported** — no Linux launcher, no Linux package, no Linux instructions.
 
 ### 1. The controller (visual console + relay)
 
 - Install **Python 3.9 or newer** ([python.org/downloads](https://www.python.org/downloads/)). No `pip install` is needed — the controller uses only the standard library.
 - Open the `controller` folder and double-click:
-  - **Windows:** `start.bat`
-  - **macOS:** `start.command` (first launch: right-click → Open, or allow it in *System Settings → Privacy & Security*)
-  - **Linux:** `start.sh`
+  - **Windows 10/11 (64-bit or 32-bit):** `start.bat`
+  - **macOS (64-bit or 32-bit):** `start.command` (first launch: right-click → Open, or allow it in *System Settings → Privacy & Security*)
 - A console window opens and your browser shows **http://127.0.0.1:8790/** — the visual console.
 
 > Keep the controller window open while you work. Closing it stops the relay. Changing the port requires a restart.
@@ -105,6 +110,22 @@ The extension has no build step; the folder is the extension. If you downloaded 
 
 That's it. The editor now exposes its tools to the local controller — it never listens for inbound connections itself.
 
+## Adding another editor
+
+The controller and the extension only know the bridge protocol in
+[`editor/PROTOCOL.md`](editor/PROTOCOL.md):
+
+1. Create `editor/<engine>/` and implement the two POST endpoints (`/api/editor/poll`,
+   `/api/editor/result`) with the same status fields.
+2. Add a `build.json` (`{"artifact": "editor-unity", "target": "..."}`); the build
+   script packages one artifact per folder automatically.
+3. Describe the engine's commands in `controller/tools.json` (or add a second
+   catalogue) — the prompt is generated from it, so the AI sees the new tools
+   without touching the extension.
+
+Godot's adapter is the reference implementation: 29 commands, GDScript + C#,
+undoable scene edits, path guards and a read-only toggle.
+
 ## Godot tutorial (first run, step by step)
 
 This walks through a complete first session.
@@ -135,16 +156,18 @@ This walks through a complete first session.
 - **Small steps beat giant rewrites.** Ask for one feature at a time. The AI inspects before editing, and each command is visible in the console.
 - **Keep the console open.** It is the only place to queue tasks and see which browser is doing what.
 - **Use 2–6 seconds of delay.** Shorter delays are possible, but a human-like pause is less likely to trip automated-input heuristics on AI sites.
-- **v0.1.0 is text-first.** The plugin can save a screenshot for *you* (`capture_editor_viewport`), but screenshots are not sent to the AI yet.
+- **Text-first for now.** The plugin can save a screenshot for *you* (`capture_editor_viewport`), but screenshots are not sent to the AI yet.
 
 ## Multi-browser AI rotation and memory
 
-You can mix browsers, tabs and providers:
+You can mix browsers, tabs and providers, and **you decide which ones take part**:
 
 1. Open DeepSeek in Chrome and press **启动**.
 2. Open the same DeepSeek (or ChatGPT, Gemini…) in Edge and press **启动**.
-3. In the console, both sessions appear under **浏览器会话**. Their **轮换** checkbox is on by default.
-4. Queue a task. Turn 1 goes to the first ready session, turn 2 to the next, and so on.
+3. Both sessions appear under **浏览器会话**. Each has a **轮换** checkbox, and the card head has **全选轮换 / 全不选**.
+4. Queue a task. With **one** ticked session everything runs on it; with **two or more** the controller switches to round-robin: turn 1 to the first, turn 2 to the next, and so on. The session header says `轮换中 · N 个浏览器` or `单浏览器模式`.
+
+Nothing is hard-wired to "three browsers": the count is whatever you tick, and unticking a session takes effect immediately without closing the tab.
 
 Why it is useful: you can use several free AI accounts/tabs at once and spread the load, or fall back to whichever provider is fastest today. Because each tab has its own chat memory, the controller writes a **memory brief** into every turn after the first:
 
@@ -168,14 +191,29 @@ Each line is a timestamped event (task, dispatch, reply, tool, note), so you can
 
 You can turn a session off temporarily without closing the tab: uncheck **轮换** in the console, or click **停止** in the page bar to fully detach it.
 
+## Performance modes
+
+The console has one dropdown (**性能模式**) with three profiles. Switching applies the profile's numbers immediately — no restart — and every value stays visible/editable in `controller/data/settings.json`.
+
+| Mode | RAM / CPU / disk | Poll cadence (browser / editor) | Log ring | Result cap | Best for |
+|---|---|---|---|---|---|
+| **极致性能 / eco** | smallest; measured RSS is shown in the console footer and stays around **15–25 MB** | 1.5 s / 1.0 s | 120 lines | 6 000 chars | laptops, long unattended runs, many tabs |
+| **均衡 / balanced** (default) | moderate | 1.2 s / 0.4 s | 800 lines | 12 000 chars | everyday use |
+| **最快速度 / turbo** | largest | 0.5 s / 0.25 s | 2 000 lines | 20 000 chars | a single project, speed over footprint |
+
+- The profile also sets how many timeline entries go into the memory brief, how many finished tasks stay in memory, and how often the console redraws.
+- `记忆保留天数` (memory keep-days) prunes `controller/data/memory/` on startup and on save; `0` keeps everything.
+- The editor plugin receives the poll cadence from the controller (`settings.poll_ms`), so eco mode slows the Godot bridge down too instead of just the UI.
+- The console shows the **real** resident memory of the relay (`/api/status → perf.rss_mb`), not an estimate.
+
 ## Input delay
 
-In the console → **输入节奏**:
+In the console → **输入节奏** (the numbers below are set by the performance mode and can then be fine-tuned):
 
 - **最小秒数 / 最大秒数** — the random range. Before *every* simulated input the extension picks a uniform random value in this range and shows a countdown in the page bar.
 - **最大回合** — a hard cap per task.
 - **记忆条数** — how many recent timeline events are prepended when a turn rotates.
-- **多浏览器轮换** — round-robin on/off.
+- **多浏览器轮换** — round-robin on/off (needs at least two ticked sessions to matter).
 - **追加给 AI 的自定义指令** — extra instructions appended to the system prompt (coding style, naming conventions, engine version quirks…).
 
 ## Supported AI providers
@@ -188,7 +226,7 @@ In the console → **输入节奏**:
 | **Kimi** | kimi.ai | Sometimes uses its own native tools instead of commands. |
 | **GLM** | chat.z.ai | Prefer GLM-5.2; z.ai can be busy at peak times. |
 | **Qwen** | chat.qwen.ai | Works best with a tool-capable model selected. |
-| **Meta AI** | meta.ai | Vision-capable page; text commands only in v0.1.0. |
+| **Meta AI** | meta.ai | Vision-capable page; NonZeroScript sends text commands only. |
 | **Arena** | arena.ai | Keep the mode on **Direct** — Battle / Side-by-side / Agent modes are blocked. |
 
 All eight have a shared command protocol, so you can rotate between them freely. The console's **新建任务** dropdown can pin a task to one provider.
@@ -272,26 +310,36 @@ Long results are capped (12 000 characters by default) so one command cannot eat
 - **Godot 4.7.2** (the editor plugin targets 4.7.2; it may work on nearby 4.x releases, but that is untested)
 - C# projects also need the **.NET build of Godot 4.7.2** and a .NET SDK; GDScript needs nothing extra
 - **Chrome or Edge** (Chromium 111+; the Edge package is the same extension)
-- **Python 3.9+** (controller; standard library only)
-- Windows, macOS or Linux
+- **Python 3.9+** (controller; standard library only). On a 32-bit system install the 32-bit Python build.
+- **Windows 10/11** (64-bit or 32-bit) or **macOS** (64-bit or 32-bit)
+- **Linux is not supported** and is not tested: there is no Linux launcher or package.
 
 ## Build from source (manual, never automatic)
 
-This repository intentionally has **no CI build**. Build release zips yourself:
+The ready-made archives in [`dist/`](dist) are committed, so end users never need this section. If you change the sources, rebuild manually — there is intentionally **no CI build**, nothing is published automatically.
 
 ```bash
-python3 tools/build.py
+python3 tools/build.py --check   # versions + prompt docs agree? build nothing
+python3 tools/build.py --clean   # rebuild every artifact from scratch
 ```
 
 Output in `dist/`:
 
 ```
-dist/NonZeroScript-0.1.0.zip          # everything below in one archive
-dist/controller.zip                   # controller/ (console + relay + start scripts)
+dist/NonZeroScript-0.2.0.zip          # everything below in one archive
+dist/controller.zip                   # controller/ (console + relay + Windows/macOS launchers)
 dist/extension.zip                    # extension/ (load unpacked in Chrome/Edge)
 dist/editor-godot-4.7.2.zip           # addons/nonzeroscript/ for a Godot project
 dist/SHA256SUMS.txt
 ```
+
+`python3 tools/build.py --clean` first deletes `dist/` and then rebuilds every artifact. The zips are committed on purpose: the repository is the download.
+
+`--check` verifies that the version string matches in all seven places
+(`version.txt`, `controller/version.py`, `extension/manifest.json`,
+`controller/tools.json`, `plugin.cfg`, `commands.gd`, `bridge.gd`) and that
+`prompts/tool-catalogue.md` still matches `controller/tools.json`; the build
+refuses to run when they disagree, so a release can never be mislabeled.
 
 The build script uses only the Python standard library. `--exe` optionally builds a single-file controller executable with PyInstaller if you have it installed.
 
@@ -301,6 +349,7 @@ Two tests run offline and need no packages:
 python3 tools/smoke_test.py    # starts a controller + fake editor + two fake browsers,
                                # checks rotation, the memory brief and command execution
 node tools/test_parser.js      # parser cases (JSON, fenced blocks, truncation, aliases)
+python3 tools/prompts.py --check   # prompt docs still match tools.json + config.js
 ```
 
 There is **no GitHub Actions workflow on purpose**: nothing is built or published automatically. Run the build yourself when you want release archives.
@@ -315,11 +364,34 @@ NonZeroScript/
   extension/               Chrome/Edge MV3 extension
     core/                  provider-agnostic agent loop, parser, transport
     providers/             one adapter per AI website
-  editor/
-    godot-4.7.2/            Godot editor plugin (installs as addons/nonzeroscript)
-  tools/                   build + smoke test
+  editor/                  one folder per editor adapter
+    PROTOCOL.md            editor-agnostic bridge contract
+    godot-4.7.2/           Godot plugin (installs as addons/nonzeroscript)
+  prompts/                 the instructions the AI gets (system prompt, rules, catalogue)
+  dist/                    prebuilt release archives (committed)
+  tools/                   build (+ --check), smoke test, parser test, prompt exporter,
+                           clean_master.sh
   assets/                  banner and icon
 ```
+
+## Branches: the `master` landing page
+
+The product lives on `v0.1.0-dev`. `master` is only a landing page: the
+introduction and the licence, nothing else. Older commits of `master` still
+contain the legacy ZeroScript tree, and this repository does not rewrite
+branches on its own, so cleaning it is a deliberate, manual step:
+
+```bash
+tools/clean_master.sh             # show the plan, change nothing
+tools/clean_master.sh --no-push   # build the commit locally, no push
+tools/clean_master.sh --yes       # force-push master = README + README.zh-CN + LICENSE + NOTICE
+```
+
+The script takes those four files from the **current branch** (not from the old
+master, which still described the previous product), builds a parentless commit
+with git plumbing — your working tree, index and branch are untouched — and
+prints the old `master` SHA before force-pushing. If GitHub refuses (a protected
+default branch), it prints the two settings that unblock it.
 
 ## Troubleshooting
 

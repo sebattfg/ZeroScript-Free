@@ -13,12 +13,93 @@ import threading
 from pathlib import Path
 from typing import Any
 
+# ── Performance modes ─────────────────────────────────────────────────────
+# The console offers three profiles. A profile OWNS the keys in
+# PROFILE_KEYS: switching mode applies them in one shot (and the settings file
+# shows the resulting numbers, so they can still be fine-tuned afterwards).
+PERF_MODES: tuple[str, ...] = ("eco", "balanced", "turbo")
+
+PERF_PROFILES: dict[str, dict[str, Any]] = {
+    "eco": {
+        "label": "极致性能",
+        "summary": "内存 / CPU / 磁盘占用最小（目标 < 30 MB），界面刷新较慢",
+        "log_limit": 120,
+        "keep_tasks": 12,
+        "memory_context_entries": 3,
+        "memory_context_chars": 700,
+        "max_result_chars": 6000,
+        "ui_refresh_ms": 2000,
+        "session_poll_ms": 1500,
+        "editor_poll_ms": 1000,
+    },
+    "balanced": {
+        "label": "均衡",
+        "summary": "默认设置，速度和占用平衡",
+        "log_limit": 800,
+        "keep_tasks": 40,
+        "memory_context_entries": 8,
+        "memory_context_chars": 1800,
+        "max_result_chars": 12000,
+        "ui_refresh_ms": 900,
+        "session_poll_ms": 1200,
+        "editor_poll_ms": 400,
+    },
+    "turbo": {
+        "label": "最快速度",
+        "summary": "轮询最勤、结果最长、日志最多，把速度拉满",
+        "log_limit": 2000,
+        "keep_tasks": 120,
+        "memory_context_entries": 12,
+        "memory_context_chars": 2600,
+        "max_result_chars": 20000,
+        "ui_refresh_ms": 400,
+        "session_poll_ms": 500,
+        "editor_poll_ms": 250,
+    },
+}
+
+# Keys owned by a profile (see PERF_PROFILES).
+PROFILE_KEYS: tuple[str, ...] = (
+    "log_limit",
+    "keep_tasks",
+    "memory_context_entries",
+    "memory_context_chars",
+    "max_result_chars",
+    "ui_refresh_ms",
+    "session_poll_ms",
+    "editor_poll_ms",
+)
+
+
+def perf_profile(mode: str) -> dict[str, Any]:
+    return PERF_PROFILES.get(str(mode), PERF_PROFILES["balanced"])
+
+
+def apply_perf_profile(data: dict[str, Any], mode: str) -> dict[str, Any]:
+    """Return a copy of `data` with the profile's managed keys applied."""
+    merged = dict(data)
+    profile = perf_profile(mode)
+    merged["perf_mode"] = mode if mode in PERF_MODES else "balanced"
+    for key in PROFILE_KEYS:
+        merged[key] = profile[key]
+    return merged
+
+
 DEFAULTS: dict[str, Any] = {
     # ── Input pacing (the feature that makes automation feel human) ───────
     # Seconds to wait, chosen uniformly at random in [min_delay, max_delay],
     # before EVERY simulated input (startup prompt, task, tool result).
     "min_delay": 2.0,
     "max_delay": 6.0,
+    # ── Performance mode ──────────────────────────────────────────────────
+    # "eco" | "balanced" | "turbo" - see PERF_PROFILES. Managed keys below
+    # follow the profile; changing one by hand afterwards is allowed.
+    "perf_mode": "balanced",
+    "log_limit": 800,
+    "keep_tasks": 40,
+    "ui_refresh_ms": 900,
+    "session_poll_ms": 1200,
+    "editor_poll_ms": 400,
     # ── Rotation / task limits ────────────────────────────────────────────
     "rotation": True,          # round-robin across ready browser sessions
     "max_turns": 60,           # hard cap per task
@@ -26,6 +107,7 @@ DEFAULTS: dict[str, Any] = {
     # ── Memory ────────────────────────────────────────────────────────────
     "memory_context_entries": 8,   # timeline entries prepended for rotation
     "memory_context_chars": 1800,  # character budget of the memory brief
+    "memory_keep_days": 0,         # delete timeline files older than N days (0 = keep)
     # ── Relay ─────────────────────────────────────────────────────────────
     "max_result_chars": 12000,  # tool result cap sent back to the AI
     "editor_timeout": 30.0,     # seconds to wait for a tool result
@@ -73,6 +155,15 @@ def normalize(raw: dict[str, Any]) -> dict[str, Any]:
     out["memory_context_entries"] = int(_num(out.get("memory_context_entries"), 8, 0, 100))
     out["memory_context_chars"] = int(_num(out.get("memory_context_chars"), 1800, 0, 20000))
     out["max_result_chars"] = int(_num(out.get("max_result_chars"), 12000, 1000, 200000))
+    out["perf_mode"] = str(out.get("perf_mode") or "balanced").lower()
+    if out["perf_mode"] not in PERF_MODES:
+        out["perf_mode"] = "balanced"
+    out["log_limit"] = int(_num(out.get("log_limit"), 800, 20, 5000))
+    out["keep_tasks"] = int(_num(out.get("keep_tasks"), 40, 1, 500))
+    out["ui_refresh_ms"] = int(_num(out.get("ui_refresh_ms"), 900, 250, 10000))
+    out["session_poll_ms"] = int(_num(out.get("session_poll_ms"), 1200, 200, 15000))
+    out["editor_poll_ms"] = int(_num(out.get("editor_poll_ms"), 400, 150, 10000))
+    out["memory_keep_days"] = int(_num(out.get("memory_keep_days"), 0, 0, 3650))
     out["editor_timeout"] = _num(out.get("editor_timeout"), 30.0, 3.0, 300.0)
     out["session_timeout"] = _num(out.get("session_timeout"), 12.0, 3.0, 120.0)
     out["session_lease"] = _num(out.get("session_lease"), 300.0, 30.0, 1800.0)
@@ -125,6 +216,8 @@ class Settings:
         with self._lock:
             merged = dict(self._data)
             merged.update({k: v for k, v in (patch or {}).items() if k in DEFAULTS})
+            if "perf_mode" in (patch or {}):
+                merged = apply_perf_profile(merged, str(merged.get("perf_mode")))
             self._data = normalize(merged)
             self.save()
             return dict(self._data)
@@ -140,4 +233,6 @@ class Settings:
             "memory_context_entries": d["memory_context_entries"],
             "memory_context_chars": d["memory_context_chars"],
             "custom_prompt": d["custom_prompt"],
+            "perf_mode": d["perf_mode"],
+            "poll_ms": d["session_poll_ms"],
         }

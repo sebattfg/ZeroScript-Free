@@ -15,7 +15,7 @@ brief.
     python3 tools/smoke_test.py
     python3 tools/smoke_test.py --keep-logs
 
-No third-party packages; works on Windows, macOS and Linux.
+No third-party packages; runs on Windows and macOS (the supported hosts).
 """
 
 from __future__ import annotations
@@ -253,6 +253,29 @@ def main(argv: list[str] | None = None) -> int:
         else:
             failures.append(f"attach_script missing from the catalogue: {sorted(names)}")
 
+        # Performance profile: the status must expose a label and a measured RSS,
+        # and switching to eco must apply the profile's managed values.
+        perf = st.get("perf") or {}
+        if perf.get("mode") == "balanced" and perf.get("label") and "rss_mb" in perf:
+            print(f"  [ok] perf profile reported ({perf.get('label')}, rss {perf.get('rss_mb')} MB)")
+        else:
+            failures.append(f"perf block missing/incomplete: {perf}")
+        api.call("/api/settings", {"perf_mode": "eco"}, timeout=5)
+        st2 = api.call("/api/status", {}, timeout=3)
+        eco = st2.get("settings") or {}
+        if eco.get("perf_mode") == "eco" and int(eco.get("log_limit", 0)) <= 200 and int(eco.get("max_result_chars", 0)) <= 6000:
+            print("  [ok] eco profile applied (log ring + result cap reduced)")
+        else:
+            failures.append(f"eco profile not applied: {eco.get('perf_mode')} {eco.get('log_limit')} {eco.get('max_result_chars')}")
+        api.call("/api/settings", {"perf_mode": "balanced"}, timeout=5)
+
+        # Rotation block: no session is ticked yet at this point, so it must be idle.
+        rot = st.get("rotation") or {}
+        if {"switch", "eligible", "active", "mode"} <= set(rot):
+            print(f"  [ok] rotation block present (mode={rot.get('mode')})")
+        else:
+            failures.append(f"rotation block missing: {rot}")
+
         a = FakeSession(api, "smoke-a", "Chrome", "deepseek", "command")
         b = FakeSession(api, "smoke-b", "Edge", "chatgpt", "finish")
         # Register sequentially so "first connected" is deterministic; the poll
@@ -268,6 +291,11 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(f"expected 2 sessions, got {len(st.get('sessions') or [])}")
         else:
             print("  [ok] two sessions registered")
+        rot = st.get("rotation") or {}
+        if rot.get("active") and rot.get("eligible") == 2:
+            print("  [ok] two ticked sessions switch rotation on")
+        else:
+            failures.append(f"rotation not active with two ready sessions: {rot}")
 
         created = api.call("/api/task/add", {"prompt": "Smoke test: inspect the project."}, timeout=10)
         task_id = (created.get("task") or {}).get("id")

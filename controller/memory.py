@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -158,9 +159,41 @@ class Memory:
         )
 
     # ── listing (console) ─────────────────────────────────────────────────
-    def list_tasks(self) -> list[dict[str, Any]]:
+    def prune(self, keep_days: int) -> int:
+        """Delete timeline files older than `keep_days` (0 = keep everything)."""
+        days = int(keep_days or 0)
+        if days <= 0:
+            return 0
+        cutoff = time.time() - days * 86400
+        removed = 0
+        for folder in (self.tasks_dir, self.sessions_dir):
+            for path in folder.glob("*.jsonl"):
+                try:
+                    if path.stat().st_mtime < cutoff:
+                        path.unlink()
+                        removed += 1
+                except OSError:
+                    continue
+        with self._lock:
+            self._task_files = {k: v for k, v in self._task_files.items() if v.exists()}
+        return removed
+
+    def disk_usage(self) -> dict[str, Any]:
+        """Counts and bytes of the timeline folder (shown in the console)."""
+        files = 0
+        total = 0
+        for folder in (self.tasks_dir, self.sessions_dir):
+            for path in folder.glob("*.jsonl"):
+                files += 1
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    pass
+        return {"files": files, "bytes": total, "mb": round(total / (1024 * 1024), 1)}
+
+    def list_tasks(self, limit: int = 40) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
-        for path in sorted(self.tasks_dir.glob("*.jsonl"), reverse=True):
+        for path in sorted(self.tasks_dir.glob("*.jsonl"), reverse=True)[: max(1, int(limit))]:
             evs = self._read(path)
             if not evs:
                 continue
@@ -176,7 +209,7 @@ class Memory:
                     "state": last.get("state") or ("done" if last.get("done") else "in progress"),
                 }
             )
-        return out[:80]
+        return out
 
     def list_sessions(self) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []

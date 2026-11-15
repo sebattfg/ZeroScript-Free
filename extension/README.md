@@ -7,8 +7,16 @@ This folder **is** the unpacked extension. There is no build step.
 - Chrome: `chrome://extensions` → Developer mode → **Load unpacked** → this folder
 - Edge: `edge://extensions` → Developer mode → **Load unpacked** → this folder
 
-The same folder works in both. After an update, press the reload arrow on the
-extension card and refresh any open AI tab.
+The same folder works in both, on **Windows 10/11 and macOS (64-bit and
+32-bit)**. After an update, press the reload arrow on the extension card and
+refresh any open AI tab.
+
+The extension is editor-agnostic: it never talks to an editor directly, only to
+the local controller (`http://127.0.0.1:8790`). Which editor is connected —
+Godot 4.7.2 today — is decided by the plugin, not by this folder.
+
+Prompt text and the command catalogue live in `core/config.js`; the documentation
+copies are in [`../prompts/`](../prompts/README.md).
 
 ## Layout
 

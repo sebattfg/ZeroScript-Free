@@ -1,11 +1,25 @@
-# editor — editor plugins
+# editor — editor adapters
 
-Each subfolder is a self-contained plugin for one engine version. The build
-script reads `build.json` inside a folder and packages the folder's contents at
-the `target` path, so the zip can be extracted straight into a project.
+NonZeroScript is **multi-editor**: the browser extension and the controller only
+speak the small bridge protocol in [`PROTOCOL.md`](PROTOCOL.md). Every editor
+gets one folder here, and the build script packages one artifact per folder.
+
+| Editor | Folder | Languages | Status |
+|---|---|---|---|
+| **Godot 4.7.2** | `godot-4.7.2/` | GDScript, C# | shipped, 29 commands |
+| Unity | — | C# | planned (protocol only) |
+| Unreal Engine | — | C++, Blueprint | planned (protocol only) |
+
+"Planned" means the protocol can express it, not that a plugin exists. Only list
+an editor here once its folder does something real.
+
+Each subfolder is self-contained. The build script reads `build.json` inside a
+folder and packages the folder's contents at the `target` path, so the zip can
+be extracted straight into a project.
 
 ```
 editor/
+  PROTOCOL.md           editor-agnostic bridge contract (read this to add an engine)
   godot-4.7.2/          Godot editor plugin
     plugin.cfg
     plugin.gd           EditorPlugin entry point
@@ -83,16 +97,22 @@ plugin never rewrites one into the other.
 - **Results are compact.** The controller truncates long results before they go
   back to the AI; the plugin caps reads at 4 MB and 5000 lines by default.
 
-## Adding another engine folder
+## Adding another editor
 
-Create `editor/<engine>/`, include a `build.json`:
+1. Read [`PROTOCOL.md`](PROTOCOL.md) — two POST endpoints and one status body.
+2. Create `editor/<engine>/` and implement them (outbound polling only, one
+   command at a time, your own path safety and write toggle).
+3. Add a `build.json`:
 
-```json
-{ "artifact": "editor-godot-4.8", "target": "addons/nonzeroscript" }
-```
+   ```json
+   { "artifact": "editor-unity", "target": "Assets/NonZeroScript" }
+   ```
 
-and run `python3 tools/build.py`. One artifact is produced per folder, as
-required by the release scripts.
+4. Run `python3 tools/build.py`. One artifact is produced per folder.
+5. Describe the commands in `controller/tools.json`; the prompt picks them up
+   automatically, the extension never needs a change.
+6. Add the editor to the table above and to the **Supported adapters** table in
+   `PROTOCOL.md`.
 
 ## Notes for 4.7.2
 
