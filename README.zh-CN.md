@@ -4,7 +4,7 @@
 ![Editor](https://img.shields.io/badge/editors-多编辑器%20%C2%B7%20Godot%204.7.2-478cbf)
 ![Languages](https://img.shields.io/badge/scripts-GDScript%20%2B%20C%23-2f9e44)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.2.0-6366f1)
+![Version](https://img.shields.io/badge/version-0.2.1-6366f1)
 
 ![NonZeroScript banner](assets/banner.svg)
 
@@ -71,7 +71,16 @@
 
 ## 下载与安装（共三部分）
 
-> 下载 **[Releases](../../releases)** 里的 **`NonZeroScript-0.2.0.zip`**（也可以直接用仓库里的 [`dist/`](dist)）：一个压缩包里有操控台、浏览器插件和 Godot 插件，解压后按下面三步装好即可。
+> **[Releases](../../releases)** 页面有四个独立的压缩包（仓库里的 [`dist/`](dist) 也是同一批文件）。前三个必须装，`prompts.zip` 是给 AI 的指令，供查看参考。
+>
+> | 压缩包 | 是什么 | 放哪里 |
+> |---|---|---|
+> | **`controller.zip`** | 可视化操控台 + 本地中转 | 放哪都行，双击启动脚本 |
+> | **`extension.zip`** | Chrome / Edge 插件 | 加载已解压，文件夹保留 |
+> | **`editor-godot-4.7.2.zip`** | Godot 4.7.2 插件 | 项目的 `addons/nonzeroscript` |
+> | `prompts.zip` | 给 AI 的指令 | 只读参考 |
+>
+> 每个包里都有自己的 `INSTALL.txt`。解压后按下面三步装好即可。
 >
 > **平台说明：** 仅支持 **Windows 10/11** 和 **macOS**，**64 位与 32 位都可以**；**不提供 Linux 版本**，也没有 Linux 启动脚本或安装包。
 

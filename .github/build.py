@@ -34,7 +34,6 @@ VERSION_SOURCES = [
     ("editor/godot-4.7.2/core/bridge.gd", r'const PLUGIN_VERSION\s*:=\s*"([^"]+)"'),
 ]
 
-DOC_FILES = ("README.md", "README.zh-CN.md", "CHANGELOG.md", "LICENSE", "NOTICE", "version.txt")
 SKIP_DIRS = {".git", ".github", "dist", "data", "__pycache__", "node_modules", ".godot", ".import"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".tmp", ".zip", ".log", ".uid"}
 
@@ -230,27 +229,25 @@ def build_editor(folder: Path, path: Path) -> int:
     return make_zip(path, build)
 
 
-def build_combined(path: Path, editors: list[Path]) -> int:
+def build_prompts(path: Path) -> int:
     def build(zf: zipfile.ZipFile) -> int:
-        version = read_version()
-        add_text(zf, "INSTALL.txt", install_text("combined", version))
-        count = 0
-        for name in DOC_FILES:
-            src = ROOT / name
-            if src.exists():
-                zf.write(src, name)
-                count += 1
-        count += add_tree(zf, ROOT / "assets", "assets")
-        count += add_tree(zf, ROOT / "prompts", "prompts")
-        protocol = ROOT / "editor" / "PROTOCOL.md"
-        if protocol.exists():
-            zf.write(protocol, "editor/PROTOCOL.md")
-            count += 1
-        count += add_tree(zf, ROOT / "controller", "controller", skip_top=("data",))
-        count += add_tree(zf, ROOT / "extension", "extension")
-        for folder in editors:
-            count += add_tree(zf, folder, f"editor/{folder.name}", skip_top=("build.json",))
-        return count
+        add_text(
+            zf,
+            "INSTALL.txt",
+            install_text(
+                "prompts",
+                read_version(),
+                "\nThese are the instructions NonZeroScript gives the AI.\n\n"
+                "  system-prompt.md    the full prompt, with {{PLACEHOLDERS}}\n"
+                "  agent-rules.md      the same rules as a checklist\n"
+                "  tool-catalogue.md   every command, parameter and description\n"
+                "  repair-messages.md  the hints sent back when a reply cannot be parsed\n\n"
+                "Nothing here is read at runtime: the live copies are in\n"
+                "extension/core/config.js and controller/tools.json. Read these to see\n"
+                "exactly what the AI is told, or adapt them to your own project.\n",
+            ),
+        )
+        return add_tree(zf, ROOT / "prompts", "prompts")
 
     return make_zip(path, build)
 
@@ -283,15 +280,14 @@ def build(out: Path) -> int:
     )[1])
     print(f"  [ok] extension.zip   {n} files  {(out / 'extension.zip').stat().st_size // 1024} KB")
 
-    editors = editor_folders()
-    for folder in editors:
+    for folder in editor_folders():
         path = out / f"editor-{folder.name}.zip"
         n = build_editor(folder, path)
         print(f"  [ok] {path.name}  {n} files -> addons/nonzeroscript/")
 
-    combined = out / f"NonZeroScript-{version}.zip"
-    n = build_combined(combined, editors)
-    print(f"  [ok] {combined.name}  {n} files  {combined.stat().st_size // 1024} KB")
+    path = out / "prompts.zip"
+    n = build_prompts(path)
+    print(f"  [ok] prompts.zip     {n} files  {path.stat().st_size // 1024} KB")
 
     sums = out / "SHA256SUMS.txt"
     lines = []
