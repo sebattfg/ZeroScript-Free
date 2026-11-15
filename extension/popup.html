@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>NonZeroScript</title>
+  <style>
+    :root {
+      --bg: #14161d;
+      --card: #1b1e27;
+      --line: rgba(255, 255, 255, 0.09);
+      --text: #e9e9ee;
+      --muted: rgba(233, 233, 238, 0.58);
+      --accent: #818cf8;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 290px;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 12.5px/1.45 "Segoe UI", ui-sans-serif, -apple-system, "Noto Sans SC", sans-serif;
+    }
+    .wrap { padding: 14px; }
+    .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .logo {
+      width: 26px; height: 26px; border-radius: 7px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: linear-gradient(145deg, #6366f1, #4338ca);
+      color: #fff; font-size: 10px; font-weight: 800;
+    }
+    .title { font-weight: 700; font-size: 13px; }
+    .ver { margin-left: auto; font-size: 10px; color: var(--muted); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      margin-bottom: 8px;
+    }
+    .row { display: flex; align-items: center; gap: 7px; }
+    .row + .row { margin-top: 5px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; flex: 0 0 auto; }
+    .dot.ok { background: var(--green); box-shadow: 0 0 7px rgba(52, 211, 153, .7); }
+    .dot.warn { background: var(--amber); }
+    .dot.err { background: var(--red); }
+    .label { color: var(--muted); }
+    .val { margin-left: auto; font-weight: 600; }
+    .small { font-size: 11px; color: var(--muted); }
+    button {
+      width: 100%; margin-top: 7px; padding: 8px; border: 0; border-radius: 8px;
+      cursor: pointer; font: inherit; font-weight: 600;
+    }
+    .primary { background: linear-gradient(145deg, #6366f1, #4f46e5); color: #fff; }
+    .ghost { background: rgba(255, 255, 255, .07); color: var(--text); border: 1px solid var(--line); }
+    .danger { background: rgba(248, 113, 113, .12); color: #fca5a5; border: 1px solid rgba(248, 113, 113, .3); }
+    input {
+      width: 100%; margin-top: 6px; padding: 7px 8px; border-radius: 7px;
+      background: rgba(0, 0, 0, .28); color: var(--text);
+      border: 1px solid var(--line); font: 11.5px ui-monospace, monospace;
+    }
+    .providers { margin-top: 9px; font-size: 10.5px; color: var(--muted); line-height: 1.55; }
+    code { background: rgba(255, 255, 255, .08); padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <span class="logo">&lt;/&gt;</span>
+      <span class="title">NonZeroScript</span>
+      <span class="ver" id="ver">Godot</span>
+    </div>
+
+    <div class="card">
+      <div class="row"><span class="dot" id="ctl-dot"></span><span class="label">操控台</span><span class="val" id="ctl">…</span></div>
+      <div class="row"><span class="dot" id="ed-dot"></span><span class="label">Godot</span><span class="val" id="ed">…</span></div>
+      <div class="row"><span class="dot" id="tab-dot"></span><span class="label">本页</span><span class="val" id="tab">…</span></div>
+      <div class="row small" id="task-row" style="display:none"><span>任务</span><span class="val" id="task"></span></div>
+    </div>
+
+    <button class="primary" id="console">打开可视化操控台</button>
+    <button class="ghost" id="reload">刷新本页扩展</button>
+
+    <div class="card" style="margin-top:9px">
+      <div class="small">中转地址（默认 8790）</div>
+      <input id="base" spellcheck="false" />
+      <button class="ghost" id="save">保存地址</button>
+    </div>
+
+    <div class="providers">
+      支持：ChatGPT · DeepSeek · Gemini · Kimi · GLM · Qwen · Meta AI · Arena<br />
+      在 AI 页面点“启动”，再到操控台添加任务即可。
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

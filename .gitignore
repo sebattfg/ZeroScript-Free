@@ -1,20 +1,25 @@
-﻿# Local-only folders
-Compressed/
-Deprecated/
-ExtensionPresentation/
-presentation/
-docs/
+# Build output
+dist/
 
-# Zip files
+# Controller runtime data: settings.json + timeline memory (local, private)
+controller/data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Archives
 *.zip
 
-# Local dev / diagnostic tools
-probe.py
-logs/
-devtools/
+# Node (parser test tooling only)
+node_modules/
+
+# Godot / editor noise
+.godot/
+*.translation
 
 # System files
 .DS_Store
 Thumbs.db
 desktop.ini
-__pycache__/

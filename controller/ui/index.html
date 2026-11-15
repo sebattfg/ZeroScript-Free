@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NonZeroScript · Godot 操控台</title>
+  <link rel="icon" href="icon.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">&lt;/&gt;</span>
+      <div>
+        <h1>NonZeroScript</h1>
+        <p>Godot 4.7.2 可视化操控台 · ZeroScript 官方衍生版</p>
+      </div>
+    </div>
+    <div class="pills">
+      <span class="pill" id="pill-controller"><i class="dot ok"></i> 中转 <b id="ver">…</b></span>
+      <span class="pill" id="pill-editor"><i class="dot"></i> Godot <b id="editor-pill">未连接</b></span>
+      <span class="pill"><i class="dot ok"></i> 会话 <b id="session-pill">0</b></span>
+      <span class="pill"><i class="dot"></i> 端口 <b id="port-pill">8790</b></span>
+      <button class="link" id="open-godot">打开 Godot 设置说明</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- ══════════ 任务 ══════════ -->
+    <section class="col">
+      <div class="card">
+        <div class="card-head">
+          <h2>新建任务</h2>
+          <span class="muted">会轮流派发给已启动的会话</span>
+        </div>
+        <textarea id="prompt" rows="5" placeholder="例如：给我的 Godot 项目做一个主菜单：开始游戏 / 设置 / 退出，带淡入动画，脚本放在 res://scripts/ 下。"></textarea>
+        <div class="row">
+          <select id="provider">
+            <option value="">任意 AI（全部已启动会话）</option>
+          </select>
+          <button class="primary" id="add-task">加入队列</button>
+        </div>
+        <p class="hint">任务运行时会自动轮换浏览器：每个回合（一次 AI 调用 + 一条命令）可能落在不同的会话上，记忆由时间线自动接续。</p>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>任务队列</h2>
+          <button class="danger small" id="stop-all">全部停止</button>
+        </div>
+        <div id="tasks" class="list empty-note">暂无任务</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>输入节奏</h2>
+          <span class="muted">模拟输入前随机等待</span>
+        </div>
+        <div class="row tight">
+          <label class="field">最小秒数 <input type="number" id="min-delay" min="0" max="120" step="0.5" /></label>
+          <label class="field">最大秒数 <input type="number" id="max-delay" min="0" max="300" step="0.5" /></label>
+        </div>
+        <div class="row tight">
+          <label class="field">最大回合 <input type="number" id="max-turns" min="1" max="500" step="1" /></label>
+          <label class="field">记忆条数 <input type="number" id="memory-entries" min="0" max="100" step="1" /></label>
+        </div>
+        <label class="check"><input type="checkbox" id="rotation" /> 多浏览器轮换（round-robin）</label>
+        <label class="check"><input type="checkbox" id="auto-start" /> 任务完成后自动开始队列中的下一个</label>
+        <label class="field block">追加给 AI 的自定义指令
+          <textarea id="custom-prompt" rows="3" placeholder="例如：所有脚本使用 GDScript 静态类型；场景命名用 PascalCase。"></textarea>
+        </label>
+        <div class="row">
+          <button class="ghost" id="save-settings">保存设置</button>
+          <span class="hint inline" id="settings-note">端口修改需重启控制器</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ 会话 / 编辑器 ══════════ -->
+    <section class="col wide">
+      <div class="card">
+        <div class="card-head">
+          <h2>浏览器会话</h2>
+          <span class="muted" id="sessions-note">在 AI 页面点“启动”后会出现在这里</span>
+        </div>
+        <div id="sessions" class="list empty-note">暂无会话</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Godot 编辑器</h2>
+          <span class="badge" id="editor-badge">未连接</span>
+        </div>
+        <div id="editor" class="kv empty-note">等待插件连接…</div>
+        <div class="row test-row">
+          <select id="test-cmd"></select>
+          <button class="ghost" id="test-run">执行测试</button>
+        </div>
+        <textarea id="test-params" rows="2" spellcheck="false" placeholder='{"path": "res://project.godot"}'></textarea>
+        <pre id="test-out" class="out"></pre>
+      </div>
+    </section>
+
+    <!-- ══════════ 日志 / 记忆 ══════════ -->
+    <section class="col">
+      <div class="card log-card">
+        <div class="card-head">
+          <h2>实时日志</h2>
+          <label class="check inline"><input type="checkbox" id="autoscroll" checked /> 自动滚动</label>
+        </div>
+        <div id="logs" class="log"></div>
+      </div>
+
+      <div class="card mem-card">
+        <div class="card-head">
+          <h2>时间线记忆</h2>
+          <select id="mem-select" class="mini"></select>
+        </div>
+        <div id="memory" class="memory empty-note">选择一个任务查看时间线</div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <footer>
+    <span>本地运行 · 数据不上传 · GPL-3.0</span>
+    <span id="uptime"></span>
+  </footer>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,52 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="780" viewBox="0 0 1560 780" role="img" aria-label="NonZeroScript - Free AI Agent for Godot 4.7.2">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap');
-      .disp{ font-family:'Space Grotesk','Segoe UI',Arial,sans-serif; }
-      .mono{ font-family:'JetBrains Mono','Consolas',monospace; }
-    </style>
-    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-      <path d="M32 0H0V32" fill="none" stroke="#20222a" stroke-width="1"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1017"/>
+      <stop offset="0.55" stop-color="#11141d"/>
+      <stop offset="1" stop-color="#0a0d14"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="logo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#3730a3"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6366f1" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="52" height="52" patternUnits="userSpaceOnUse">
+      <path d="M 52 0 L 0 0 0 52" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
     </pattern>
-    <radialGradient id="fade" cx="0.5" cy="0.42" r="0.65">
-      <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.4" r="0.6">
-      <stop offset="0" stop-color="#4d6bfe" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#4d6bfe" stop-opacity="0"/>
-    </radialGradient>
-    <mask id="gridmask"><rect width="1280" height="640" fill="url(#fade)"/></mask>
-    <clipPath id="logoclip"><rect width="46" height="46" rx="10"/></clipPath>
   </defs>
 
-  <!-- backdrop -->
-  <rect width="1280" height="640" fill="#0a0a0b"/>
-  <rect width="1280" height="640" fill="url(#grid)" mask="url(#gridmask)" opacity="0.9"/>
-  <rect width="1280" height="640" fill="url(#glow)"/>
+  <rect width="1560" height="780" fill="url(#bg)"/>
+  <rect width="1560" height="780" fill="url(#grid)"/>
+  <ellipse cx="430" cy="390" rx="620" ry="420" fill="url(#glow)"/>
+  <ellipse cx="1280" cy="120" rx="420" ry="300" fill="url(#glow)" opacity="0.5"/>
 
   <!-- logo -->
-  <g transform="translate(64,52)">
-    <image width="46" height="46" href="favicon.png" clip-path="url(#logoclip)"/>
-    <text class="disp" x="60" y="32" font-size="28" font-weight="700" fill="#f5f5f2">ZeroScript</text>
+  <rect x="92" y="74" width="54" height="54" rx="15" fill="url(#logo)"/>
+  <text x="119" y="111" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="20" font-weight="700" fill="#ffffff">&lt;/&gt;</text>
+  <circle cx="139" cy="121" r="5" fill="#34d399"/>
+  <text x="164" y="112" font-family="Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="30" font-weight="700" fill="#ffffff">NonZeroScript</text>
+
+  <text x="92" y="188" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="15" font-weight="600" fill="#818cf8" letter-spacing="4">OFFICIAL ZEROSCRIPT DERIVATIVE  /  GODOT 4.7.2 EDITION</text>
+
+  <!-- decorative brackets -->
+  <path d="M 150 330 L 92 390 L 150 450" fill="none" stroke="#ffffff" stroke-opacity="0.72" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 1410 330 L 1468 390 L 1410 450" fill="none" stroke="#ffffff" stroke-opacity="0.72" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="780" y="360" text-anchor="middle" font-family="Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="72" font-weight="800" fill="#ffffff">Chat your Godot game</text>
+  <text x="780" y="448" text-anchor="middle" font-family="Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="72" font-weight="800" fill="#ffffff">into existence. <tspan fill="#818cf8">Free.</tspan></text>
+
+  <text x="780" y="512" text-anchor="middle" font-family="Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="24" fill="#9aa0b4">Browser extension · Visual controller · Godot editor plugin — no API key, no credits, no terminal.</text>
+
+  <g font-family="ui-monospace,Menlo,Consolas,monospace" font-size="16" fill="#7d8499" text-anchor="middle">
+    <text x="780" y="642">8 AI models  ·  multi-browser rotation  ·  timeline memory  ·  random input delay  ·  open source</text>
   </g>
 
-  <!-- giant brackets -->
-  <path d="M168 272 L120 360 L168 448" fill="none" stroke="#f5f5f2" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M1112 272 L1160 360 L1112 448" fill="none" stroke="#f5f5f2" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- eyebrow -->
-  <text class="mono" x="640" y="242" font-size="19" font-weight="500" letter-spacing="3" text-anchor="middle" fill="#8a8b83"><tspan fill="#6d84ff" font-weight="700">&lt;</tspan>  OPEN SOURCE   /   FREE FOREVER  <tspan fill="#6d84ff" font-weight="700">&gt;</tspan></text>
-
-  <!-- headline -->
-  <g class="disp" font-weight="700" text-anchor="middle">
-    <text x="640" y="328" font-size="62" fill="#f5f5f2">Chat your Roblox game</text>
-    <text x="640" y="398" font-size="62" fill="#f5f5f2">into existence. <tspan fill="#6d84ff">Free.</tspan></text>
-  </g>
-
-  <!-- subtitle -->
-  <text class="disp" x="640" y="462" font-size="24" font-weight="500" text-anchor="middle" fill="#8a8b83">Genuinely free and unlimited - no API key, no credits, no subscription.</text>
-
-  <!-- ticker -->
-  <text class="mono" x="640" y="566" font-size="18" font-weight="500" text-anchor="middle" fill="#6f7068">unlimited prompts   ·   no API key   ·   no credits   ·   7 AI models   ·   open source</text>
+  <rect x="640" y="700" width="280" height="2" rx="1" fill="url(#accent)" opacity="0.7"/>
 </svg>

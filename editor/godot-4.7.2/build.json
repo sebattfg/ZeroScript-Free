@@ -1,0 +1,6 @@
+{
+  "artifact": "editor-godot-4.7.2",
+  "target": "addons/nonzeroscript",
+  "engine": "Godot 4.7.2",
+  "install": "Extract into your Godot project root, then enable NonZeroScript in Project > Project Settings > Plugins."
+}

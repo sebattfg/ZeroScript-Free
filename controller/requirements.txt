@@ -1,0 +1,4 @@
+# NonZeroScript controller has NO third-party dependencies.
+# It runs on the Python 3.9+ standard library only.
+#
+# This file exists so tools that expect one do not complain.
