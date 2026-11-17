@@ -1,0 +1,47 @@
+name: Build
+
+# 构建脚本：打包四个下载包，作为 workflow artifact 供下载。
+# 仓库不发 GitHub Release；dist/ 里的包随代码一起提交，这里只是再打一份。
+#
+# 手动运行：Actions -> Build -> Run workflow
+
+on:
+  push:
+    branches: ["v0.1.0-dev"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Check versions and prompt docs
+        run: python .github/build.py --check
+
+      - name: Build controller.zip / extension.zip / editor-godot-4.7.2.zip / prompts.zip
+        run: python .github/build.py
+
+      - name: Show what was built
+        run: |
+          ls -lh dist
+          cat dist/SHA256SUMS.txt
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: NonZeroScript-packages
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
