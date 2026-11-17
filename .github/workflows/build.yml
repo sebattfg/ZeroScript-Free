@@ -1,6 +1,6 @@
 name: Build
 
-# 构建脚本：打包四个下载包，作为 workflow artifact 供下载。
+# 构建脚本：打四个下载包，每个包一个独立 artifact，在 Actions 页面单独下载。
 # 仓库不发 GitHub Release；dist/ 里的包随代码一起提交，这里只是再打一份。
 #
 # 手动运行：Actions -> Build -> Run workflow
@@ -37,11 +37,42 @@ jobs:
           ls -lh dist
           cat dist/SHA256SUMS.txt
 
-      - name: Upload packages
+      - name: Upload controller.zip
         uses: actions/upload-artifact@v7
         with:
-          name: NonZeroScript-packages
-          path: |
-            dist/*.zip
-            dist/SHA256SUMS.txt
+          name: controller.zip
+          path: dist/controller.zip
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload extension.zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: extension.zip
+          path: dist/extension.zip
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload editor-godot-4.7.2.zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: editor-godot-4.7.2.zip
+          path: dist/editor-godot-4.7.2.zip
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload prompts.zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: prompts.zip
+          path: dist/prompts.zip
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload SHA256SUMS.txt
+        uses: actions/upload-artifact@v7
+        with:
+          name: SHA256SUMS.txt
+          path: dist/SHA256SUMS.txt
+          compression-level: 0
           if-no-files-found: error
