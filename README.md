@@ -4,7 +4,7 @@
 ![Editor](https://img.shields.io/badge/editors-multi--editor%20%C2%B7%20Godot%204.7.2-478cbf)
 ![Languages](https://img.shields.io/badge/scripts-GDScript%20%2B%20C%23-2f9e44)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.2.1-6366f1)
+![Version](https://img.shields.io/badge/version-v0.1.0--dev-6366f1)
 
 ![NonZeroScript banner](assets/banner.svg)
 
@@ -64,7 +64,7 @@ No cloud service is involved. Everything runs on your machine, and the only netw
 
 ## Download and install
 
-Four separate packages, all on the [Releases](../../releases) page (and in [`dist/`](dist)). You need the first three; `prompts.zip` is the reference copy of what the AI is told.
+Four separate packages in [`dist/`](dist). You need the first three; `prompts.zip` is the reference copy of what the AI is told.
 
 | Package | What it is | Where it goes |
 |---|---|---|

@@ -1,7 +1,7 @@
 name: Check
 
 # Runs on every push and pull request: nothing is published here, it only
-# proves the tree is consistent before a Release is cut.
+# proves the tree is consistent before the packages in dist/ are rebuilt.
 
 on:
   push:
