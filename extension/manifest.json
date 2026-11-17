@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "NonZeroScript · Godot AI Agent",
-  "version": "0.2.1",
+  "version": "0.1.0",
+  "version_name": "v0.1.0-dev",
   "description": "Turn ChatGPT, DeepSeek, Gemini, Kimi, GLM, Qwen, Meta AI or Arena into a Godot 4.7.2 editor agent. Browser extension + local controller + editor plugin.",
   "minimum_chrome_version": "111",
   "permissions": [

@@ -53,7 +53,7 @@ Response:
   "commands": [{"id": "ab12cd", "command": "read_file", "params": {"path": "res://project.godot"}}],
   "queue": 0,
   "settings": {"max_result_chars": 12000, "poll_ms": 400, "perf_mode": "balanced"},
-  "controller": {"version": "0.2.0", "now": "2026-11-15T11:00:00Z"}
+  "controller": {"version": "v0.1.0-dev", "now": "2026-11-15T11:00:00Z"}
 }
 ```
 

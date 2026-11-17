@@ -4,7 +4,7 @@
 ![Editor](https://img.shields.io/badge/editors-多编辑器%20%C2%B7%20Godot%204.7.2-478cbf)
 ![Languages](https://img.shields.io/badge/scripts-GDScript%20%2B%20C%23-2f9e44)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Version](https://img.shields.io/badge/version-0.2.1-6366f1)
+![Version](https://img.shields.io/badge/version-v0.1.0--dev-6366f1)
 
 ![NonZeroScript banner](assets/banner.svg)
 
@@ -71,7 +71,7 @@
 
 ## 下载与安装（共三部分）
 
-> **[Releases](../../releases)** 页面有四个独立的压缩包（仓库里的 [`dist/`](dist) 也是同一批文件）。前三个必须装，`prompts.zip` 是给 AI 的指令，供查看参考。
+> [`dist/`](dist) 里有四个独立的压缩包。前三个必须装，`prompts.zip` 是给 AI 的指令，供查看参考。
 >
 > | 压缩包 | 是什么 | 放哪里 |
 > |---|---|---|

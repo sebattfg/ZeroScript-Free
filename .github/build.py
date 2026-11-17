@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the NonZeroScript download packages.
 
-Run by .github/workflows/release.yml, and runnable by hand:
+Run by .github/workflows/check.yml, and runnable by hand:
 
     python .github/build.py            # build dist/*.zip + SHA256SUMS.txt
     python .github/build.py --check    # verify versions and prompt docs only
@@ -25,14 +25,21 @@ ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 
 # Files that must all carry the same version as version.txt.
+# extension/manifest.json is checked separately: Chrome only accepts numbers in
+# "version", so the real string (e.g. v0.1.0-dev) lives in "version_name".
 VERSION_SOURCES = [
     ("controller/version.py", r'__version__\s*=\s*"([^"]+)"'),
-    ("extension/manifest.json", r'"version"\s*:\s*"([^"]+)"'),
     ("controller/tools.json", r'"version"\s*:\s*"([^"]+)"'),
     ("editor/godot-4.7.2/plugin.cfg", r'^version\s*=\s*"([^"]+)"'),
     ("editor/godot-4.7.2/core/commands.gd", r'const VERSION\s*:=\s*"([^"]+)"'),
     ("editor/godot-4.7.2/core/bridge.gd", r'const PLUGIN_VERSION\s*:=\s*"([^"]+)"'),
 ]
+
+
+def manifest_numeric(version: str) -> str:
+    """Chrome's plain-number form of the version: v0.1.0-dev -> 0.1.0."""
+    v = version[1:] if version.startswith("v") else version
+    return v.split("-", 1)[0]
 
 SKIP_DIRS = {".git", ".github", "dist", "data", "__pycache__", "node_modules", ".godot", ".import"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".tmp", ".zip", ".log", ".uid"}
@@ -63,6 +70,15 @@ def check_versions() -> list[str]:
             problems.append(f"{rel}: no version string found")
         elif match.group(1) != expected:
             problems.append(f"{rel}: {match.group(1)} != {expected}")
+    try:
+        manifest = json.loads((ROOT / "extension" / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        problems.append(f"extension/manifest.json: {exc}")
+    else:
+        if manifest.get("version_name") != expected:
+            problems.append(f"extension/manifest.json: version_name {manifest.get('version_name')!r} != {expected}")
+        if manifest.get("version") != manifest_numeric(expected):
+            problems.append(f"extension/manifest.json: version {manifest.get('version')!r} != {manifest_numeric(expected)}")
     return problems
 
 

@@ -17,7 +17,7 @@
 @tool
 extends RefCounted
 
-const VERSION := "0.2.1"
+const VERSION := "v0.1.0-dev"
 const TEXT_EXTS := ["gd", "cs", "tscn", "tres", "godot", "cfg", "json", "md", "txt", "gdshader", "shader", "csv", "svg", "import", "csproj", "sln"]
 const SCRIPT_EXTS := ["gd", "cs"]
 const MAX_READ_BYTES := 4 * 1024 * 1024
